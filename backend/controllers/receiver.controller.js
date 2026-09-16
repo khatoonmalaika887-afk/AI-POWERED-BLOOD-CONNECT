@@ -1,11 +1,12 @@
 import Receiver from "../models/receiver.model.js";
+import Donor from "../models/donor.model.js";
 import BloodRequest from "../models/bloodRequest.model.js";
 import sendNotification from "../utils/notification.js";
 
 // Get all receivers
 export const getReceivers = async (req, res) => {
     try {
-        const receivers = await Receiver.find();
+        const receivers = await Receiver.findAll({ attributes: { exclude: ['password'] } });
         res.json(receivers);
     } catch (error) {
         res.status(500).json({ message: "Error fetching receivers" });
@@ -15,7 +16,7 @@ export const getReceivers = async (req, res) => {
 // Get a single receiver by ID
 export const getReceiverById = async (req, res) => {
     try {
-        const receiver = await Receiver.findById(req.params.id);
+        const receiver = await Receiver.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
         if (!receiver) return res.status(404).json({ message: "Receiver not found" });
         res.json(receiver);
     } catch (error) {
@@ -45,7 +46,7 @@ export const createReceiver = async (req, res) => {
 
         const image = req.file ? req.file.path : null;
 
-        const newReceiver = new Receiver({
+        const newReceiver = await Receiver.create({
             firstName,
             lastName,
             gender,
@@ -59,9 +60,14 @@ export const createReceiver = async (req, res) => {
             image,
         });
 
-        await newReceiver.save();
-        res.status(201).json(newReceiver);
+        const responseReceiver = newReceiver.toJSON();
+        delete responseReceiver.password;
+        res.status(201).json(responseReceiver);
     } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            const field = Object.keys(error.fields)[0];
+            return res.status(400).json({ message: `${field} already exists` });
+        }
         res.status(400).json({ message: "Error creating receiver" });
     }
 };
@@ -69,23 +75,29 @@ export const createReceiver = async (req, res) => {
 // Update receiver details
 export const updateReceiver = async (req, res) => {
     try {
-        let { password, ...otherUpdates } = req.body;
+        const { password, ...otherUpdates } = req.body;
 
         if (password) {
-            password = await bcrypt.hash(password, 10);
             otherUpdates.password = password;
         }
 
-        const updatedReceiver = await Receiver.findByIdAndUpdate(
-            req.params.id,
-            otherUpdates,
-            { new: true, runValidators: true }
-        );
+        if (req.file) {
+            otherUpdates.image = req.file.path;
+        }
 
-        if (!updatedReceiver) return res.status(404).json({ message: "Receiver not found" });
+        const [affectedCount] = await Receiver.update(otherUpdates, {
+            where: { id: req.params.id },
+        });
 
+        if (affectedCount === 0) return res.status(404).json({ message: "Receiver not found" });
+
+        const updatedReceiver = await Receiver.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
         res.status(200).json(updatedReceiver);
     } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            const field = Object.keys(error.fields)[0];
+            return res.status(400).json({ message: `${field} already exists` });
+        }
         res.status(500).json({ message: "Error updating receiver" });
     }
 };
@@ -93,8 +105,8 @@ export const updateReceiver = async (req, res) => {
 // Delete a receiver
 export const deleteReceiver = async (req, res) => {
     try {
-        const deletedReceiver = await Receiver.findByIdAndDelete(req.params.id);
-        if (!deletedReceiver) return res.status(404).json({ message: "Receiver not found" });
+        const deletedCount = await Receiver.destroy({ where: { id: req.params.id } });
+        if (deletedCount === 0) return res.status(404).json({ message: "Receiver not found" });
 
         res.json({ message: "Receiver deleted successfully" });
     } catch (error) {
@@ -107,18 +119,15 @@ export const activateDeactivateReceiver = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const receiver = await Receiver.findById(id);
+        const receiver = await Receiver.findByPk(id);
         if (!receiver) {
             return res.status(404).json({ message: "Receiver not found" });
         }
 
         const newStatus = !receiver.activeStatus;
-        const updatedReceiver = await Receiver.findByIdAndUpdate(
-            id,
-            { $set: { activeStatus: newStatus } },
-            { new: true }
-        );
+        await Receiver.update({ activeStatus: newStatus }, { where: { id } });
 
+        const updatedReceiver = await Receiver.findByPk(id, { attributes: { exclude: ['password'] } });
         res.status(200).json({
             message: `Receiver ${newStatus ? 'activated' : 'deactivated'} successfully`,
             receiver: updatedReceiver,
@@ -134,7 +143,7 @@ export const createBloodRequest = async (req, res) => {
         const { bloodType, unitsRequired, urgency, city, notes } = req.body;
         const receiverId = req.user.id; // Assuming auth middleware sets req.user
 
-        const newRequest = new BloodRequest({
+        const newRequest = await BloodRequest.create({
             receiverId,
             bloodType,
             unitsRequired,
@@ -142,8 +151,6 @@ export const createBloodRequest = async (req, res) => {
             city,
             notes,
         });
-
-        await newRequest.save();
 
         // Send notification to nearby donors (logic to be implemented)
         // For now, just return success
@@ -157,7 +164,7 @@ export const createBloodRequest = async (req, res) => {
 export const getBloodRequestsByReceiver = async (req, res) => {
     try {
         const receiverId = req.params.id;
-        const requests = await BloodRequest.find({ receiverId });
+        const requests = await BloodRequest.findAll({ where: { receiverId } });
         res.json(requests);
     } catch (error) {
         res.status(500).json({ message: "Error fetching blood requests" });
@@ -168,7 +175,7 @@ export const getBloodRequestsByReceiver = async (req, res) => {
 export const searchDonors = async (req, res) => {
     try {
         const { city, bloodType } = req.query;
-        const donors = await Receiver.find({ city, bloodType, activeStatus: true });
+        const donors = await Donor.findAll({ where: { city, bloodType, activeStatus: true }, attributes: { exclude: ['password'] } });
         res.json(donors);
     } catch (error) {
         res.status(500).json({ message: "Error searching donors" });

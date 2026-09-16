@@ -13,7 +13,7 @@ export const useHospital = () => {
             setHospitals(response.data);
         } catch (err) {
             console.error("Error fetching hospitals:", err);
-           
+
         } finally {
             setLoading(false);
         }
@@ -24,10 +24,10 @@ export const useHospital = () => {
         try {
             const response = await axios.get(`/api/hospital/${id}`);
             setHospitals([response.data]);
-            
+
         } catch (err) {
             console.error("Error fetching hospital:", err);
-            
+
         } finally {
             setLoading(false);
         }
@@ -38,10 +38,24 @@ export const useHospital = () => {
         try {
             const response = await axios.post("/api/hospital", hospitalData);
             setHospitals((prev) => [...prev, response.data]);
-            toast.success("Hospital created successfully!");
+            return response.data;
         } catch (err) {
             console.error("Error creating hospital:", err);
-            toast.error(err?.response?.data?.message || "Failed to create hospital");
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Public self-registration - hospital stays pending until a manager approves it.
+    const registerHospital = async (hospitalData) => {
+        setLoading(true);
+        try {
+            const response = await axios.post("/api/hospital/register", hospitalData);
+            return response.data;
+        } catch (err) {
+            console.error("Error registering hospital:", err);
+            throw err;
         } finally {
             setLoading(false);
         }
@@ -53,7 +67,7 @@ export const useHospital = () => {
             const response = await axios.put(`/api/hospital/${id}`, hospitalData);
             setHospitals((prev) =>
                 prev.map((hospital) =>
-                    hospital._id === id ? { ...hospital, ...response.data } : hospital
+                    hospital.id === id ? { ...hospital, ...response.data } : hospital
                 )
             );
             toast.success("Hospital updated successfully!");
@@ -69,7 +83,7 @@ export const useHospital = () => {
         setLoading(true);
         try {
             await axios.delete(`/api/hospital/${id}`);
-            setHospitals((prev) => prev.filter((hospital) => hospital._id !== id));
+            setHospitals((prev) => prev.filter((hospital) => hospital.id !== id));
             toast.success("Hospital deleted successfully!");
         } catch (err) {
             console.error("Error deleting hospital:", err);
@@ -85,7 +99,7 @@ export const useHospital = () => {
             const response = await axios.patch(`/api/hospital/${id}/toggle-status`);
             setHospitals((prev) =>
                 prev.map((hospital) =>
-                    hospital._id === id ? { ...hospital, activeStatus: !hospital.activeStatus } : hospital
+                    hospital.id === id ? { ...hospital, activeStatus: !hospital.activeStatus } : hospital
                 )
             );
             toast.success("Hospital status toggled successfully!");
@@ -97,14 +111,35 @@ export const useHospital = () => {
         }
     };
 
+    // decision: 'Approved' | 'Rejected'
+    const updateHospitalApproval = async (id, decision) => {
+        setLoading(true);
+        try {
+            const response = await axios.patch(`/api/hospital/${id}/approval`, { decision });
+            setHospitals((prev) =>
+                prev.map((hospital) =>
+                    hospital.id === id ? { ...hospital, ...response.data.hospital } : hospital
+                )
+            );
+            toast.success(`Hospital ${decision.toLowerCase()}`);
+        } catch (err) {
+            console.error("Error updating hospital approval:", err);
+            toast.error(err?.response?.data?.message || "Failed to update hospital approval");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return {
         hospitals,
         loading,
         fetchHospitals,
         fetchHospitalById,
         createHospital,
+        registerHospital,
         updateHospital,
         deleteHospital,
         activateDeactivateHospital,
+        updateHospitalApproval,
     };
 };

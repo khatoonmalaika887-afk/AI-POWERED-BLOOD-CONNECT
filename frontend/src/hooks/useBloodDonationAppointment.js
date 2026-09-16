@@ -58,7 +58,7 @@ export const useBloodDonationAppointment = () => {
                 hospitalAdminId,
             });
             setAppointments((prev) =>
-                prev.map((appointment) => (appointment._id === id ? response.data : appointment))
+                prev.map((appointment) => (appointment.id === id ? response.data : appointment))
             );
             toast.success("Appointment date and time updated successfully!");
         } catch (err) {
@@ -76,7 +76,7 @@ export const useBloodDonationAppointment = () => {
                 hospitalAdminId,
             });
             setAppointments((prev) =>
-                prev.map((appointment) => (appointment._id === id ? response.data : appointment))
+                prev.map((appointment) => (appointment.id === id ? response.data : appointment))
             );
             toast.success("Appointment canceled successfully!");
         } catch (err) {
@@ -94,7 +94,7 @@ export const useBloodDonationAppointment = () => {
                 hospitalAdminId,
             });
             setAppointments((prev) =>
-                prev.map((appointment) => (appointment._id === id ? response.data : appointment))
+                prev.map((appointment) => (appointment.id === id ? response.data : appointment))
             );
             toast.success("Appointment accepted successfully!");
         } catch (err) {
@@ -112,7 +112,7 @@ export const useBloodDonationAppointment = () => {
                 receiptNumber,
             });
             setAppointments((prev) =>
-                prev.map((appointment) => (appointment._id === id ? response.data : appointment))
+                prev.map((appointment) => (appointment.id === id ? response.data : appointment))
             );
             toast.success("Appointment marked as arrived successfully!");
         } catch (err) {
@@ -123,12 +123,12 @@ export const useBloodDonationAppointment = () => {
         }
     };
 
-    const completeAppointment = async (id) => {
+    const completeAppointment = async (id, units = 1) => {
         setLoading(true);
         try {
-            const response = await axios.patch(`/api/blooddonationappointment/${id}/complete`);
+            const response = await axios.patch(`/api/blooddonationappointment/${id}/complete`, { units });
             setAppointments((prev) =>
-                prev.map((appointment) => (appointment._id === id ? response.data : appointment))
+                prev.map((appointment) => (appointment.id === id ? response.data : appointment))
             );
             toast.success("Appointment completed successfully!");
         } catch (err) {
@@ -143,7 +143,7 @@ export const useBloodDonationAppointment = () => {
         setLoading(true);
         try {
             await axios.delete(`/api/blooddonationappointment/${id}`);
-            setAppointments((prev) => prev.filter((appointment) => appointment._id !== id));
+            setAppointments((prev) => prev.filter((appointment) => appointment.id !== id));
             toast.success("Appointment deleted successfully!");
         } catch (err) {
             console.error("Error deleting appointment:", err);

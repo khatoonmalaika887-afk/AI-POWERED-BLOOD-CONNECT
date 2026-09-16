@@ -1,9 +1,10 @@
 import Inquiry from '../models/inquiry.model.js';
+import SystemManager from '../models/SystemManager.model.js';
 
 // Fetch all inquiries
 export const getAllInquiries = async (req, res) => {
     try {
-        const inquiries = await Inquiry.find();
+        const inquiries = await Inquiry.findAll();
         res.json(inquiries);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching inquiries' });
@@ -13,8 +14,9 @@ export const getAllInquiries = async (req, res) => {
 // Fetch a specific inquiry by ID
 export const getInquiryById = async (req, res) => {
     try {
-        const inquiry = await Inquiry.findById(req.params.id)
-            .populate('systemManagerId', 'name email');
+        const inquiry = await Inquiry.findByPk(req.params.id, {
+            include: [{ model: SystemManager, as: 'systemManager', attributes: ['firstName', 'lastName', 'email'] }],
+        });
         if (!inquiry) {
             return res.status(404).json({ message: 'Inquiry not found' });
         }
@@ -29,14 +31,13 @@ export const createInquiry = async (req, res) => {
     const { email, subject, message, category } = req.body;
 
     try {
-        const newInquiry = new Inquiry({
+        const newInquiry = await Inquiry.create({
             email,
             subject,
             message,
             category
         });
 
-        await newInquiry.save();
         res.status(201).json({ message: 'Inquiry created successfully', inquiry: newInquiry });
     } catch (error) {
         res.status(500).json({ message: 'Error creating inquiry' });
@@ -53,16 +54,16 @@ export const updateInquiryStatus = async (req, res) => {
     }
 
     try {
-        const inquiry = await Inquiry.findByIdAndUpdate(
-            req.params.id,
+        const [affectedCount] = await Inquiry.update(
             { attentiveStatus: status },
-            { new: true }
+            { where: { id: req.params.id } }
         );
-        
-        if (!inquiry) {
+
+        if (affectedCount === 0) {
             return res.status(404).json({ message: 'Inquiry not found' });
         }
 
+        const inquiry = await Inquiry.findByPk(req.params.id);
         res.json({ message: 'Inquiry updated successfully', inquiry });
     } catch (error) {
         res.status(500).json({ message: 'Error updating inquiry' });
@@ -72,8 +73,8 @@ export const updateInquiryStatus = async (req, res) => {
 // Delete an inquiry by ID
 export const deleteInquiry = async (req, res) => {
     try {
-        const inquiry = await Inquiry.findByIdAndDelete(req.params.id);
-        if (!inquiry) {
+        const deletedCount = await Inquiry.destroy({ where: { id: req.params.id } });
+        if (deletedCount === 0) {
             return res.status(404).json({ message: 'Inquiry not found' });
         }
         res.json({ message: 'Inquiry deleted successfully' });

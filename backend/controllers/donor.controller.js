@@ -1,10 +1,10 @@
 import Donor from "../models/donor.model.js";
 import sendNotification from "../utils/notification.js";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 // Get all donors
 export const getDonors = async (req, res) => {
     try {
-        const donors = await Donor.find();
+        const donors = await Donor.findAll({ attributes: { exclude: ['password'] } });
         res.json(donors);
     } catch (error) {
         res.status(500).json({ message: "Error fetching donors" });
@@ -14,7 +14,7 @@ export const getDonors = async (req, res) => {
 // Get a single donor by ID
 export const getDonorById = async (req, res) => {
     try {
-        const donor = await Donor.findByPk(req.params.id);
+        const donor = await Donor.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
         if (!donor) return res.status(404).json({ message: "Donor not found" });
         res.json(donor);
     } catch (error) {
@@ -46,7 +46,7 @@ export const createDonor = async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newDonor = new Donor({
+        const newDonor = await Donor.create({
             firstName,
             lastName,
             gender,
@@ -60,8 +60,9 @@ export const createDonor = async (req, res) => {
             image,
         });
 
-        await newDonor.save();
-        res.status(201).json(newDonor);
+        const responseDonor = newDonor.toJSON();
+        delete responseDonor.password;
+        res.status(201).json(responseDonor);
 
     } catch (error) {
         if (error.name === 'SequelizeUniqueConstraintError') {
@@ -87,18 +88,15 @@ export const updateDonor = async (req, res) => {
             otherUpdates.image = image;
         }
 
-        const updatedDonor = await Donor.update(
+        const [affectedCount] = await Donor.update(
             otherUpdates,
-            {
-                where: { id: req.params.id },
-                returning: true,
-                runValidators: true
-            }
+            { where: { id: req.params.id } }
         );
 
-        if (updatedDonor[0] === 0) return res.status(404).json({ message: "Donor not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Donor not found" });
 
-        res.status(200).json(updatedDonor[1][0]);
+        const updatedDonor = await Donor.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
+        res.status(200).json(updatedDonor);
     } catch (error) {
         if (error.name === 'SequelizeUniqueConstraintError') {
             const field = Object.keys(error.fields)[0];
@@ -126,14 +124,15 @@ export const updateHealthStatus = async (req, res) => {
         let { healthStatus } = req.body;
         healthStatus = healthStatus === "true" || healthStatus === true;
 
-        const [affectedRows] = await Donor.update(
+        const [affectedCount] = await Donor.update(
             { healthStatus },
-            { where: { id: req.params.id }, returning: true }
+            { where: { id: req.params.id } }
         );
 
-        if (affectedRows === 0) return res.status(404).json({ message: "Donor not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Donor not found" });
 
-        res.status(200).json(affectedRows[1][0]);
+        const updatedDonor = await Donor.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
+        res.status(200).json(updatedDonor);
     } catch (error) {
         res.status(500).json({ message: "Error updating health status" });
     }
@@ -145,14 +144,15 @@ export const updateAppointmentStatus = async (req, res) => {
         let { appointmentStatus } = req.body;
         appointmentStatus = appointmentStatus === "true" || appointmentStatus === true;
 
-        const [affectedRows] = await Donor.update(
+        const [affectedCount] = await Donor.update(
             { appointmentStatus },
-            { where: { id: req.params.id }, returning: true }
+            { where: { id: req.params.id } }
         );
 
-        if (affectedRows === 0) return res.status(404).json({ message: "Donor not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Donor not found" });
 
-        res.status(200).json(affectedRows[1][0]);
+        const updatedDonor = await Donor.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
+        res.status(200).json(updatedDonor);
     } catch (error) {
         res.status(500).json({ message: "Error updating appointment status" });
     }
@@ -169,14 +169,15 @@ export const activateDeactivateDonor = async (req, res) => {
         }
 
         const newStatus = !donor.activeStatus;
-        const [affectedRows] = await Donor.update(
+        await Donor.update(
             { activeStatus: newStatus },
-            { where: { id }, returning: true }
+            { where: { id } }
         );
 
+        const updatedDonor = await Donor.findByPk(id, { attributes: { exclude: ['password'] } });
         res.status(200).json({
             message: `Donor ${newStatus ? 'activated' : 'deactivated'} successfully`,
-            donor: affectedRows[1][0],
+            donor: updatedDonor,
         });
     } catch (error) {
         res.status(500).json({ message: "Error toggling donor status" });
@@ -247,9 +248,9 @@ export const toggleEmergencyNotifications = async (req, res) => {
         }
 
         const newStatus = !donor.emergencyNotificationsEnabled;
-        const [affectedRows] = await Donor.update(
+        await Donor.update(
             { emergencyNotificationsEnabled: newStatus },
-            { where: { id: donorId }, returning: true }
+            { where: { id: donorId } }
         );
 
         res.json({

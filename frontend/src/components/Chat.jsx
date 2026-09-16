@@ -4,17 +4,19 @@ import { Modal } from 'flowbite-react';
 function Chat({ isOpen, onClose }) {
     const [messages, setMessages] = useState([]);
     const [userInput, setUserInput] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
     const chatAreaRef = useRef(null);
 
     const sendMessage = async () => {
-        if (!userInput.trim()) return;
+        if (!userInput.trim() || isTyping) return;
 
         const userMessage = { sender: 'user', message: userInput };
         setMessages(prevMessages => [...prevMessages, userMessage]);
         setUserInput('');
+        setIsTyping(true);
 
         try {
-            const response = await fetch('/api/chat', {
+            const response = await fetch('/api/chatbot/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -22,17 +24,17 @@ function Chat({ isOpen, onClose }) {
                 body: JSON.stringify({ message: userInput })
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
             const data = await response.json();
-            const botMessage = { sender: 'bot', message: data.response };
+            // The backend returns a friendly `response` fallback even on timeouts/errors
+            // (still a non-2xx status), so prefer that over a generic client-side message.
+            const botMessage = { sender: 'bot', message: data.response || "Sorry, there was an error processing your request." };
             setMessages(prevMessages => [...prevMessages, botMessage]);
         } catch (error) {
             console.error("Error sending message:", error);
             const errorMessage = { sender: 'bot', message: "Sorry, there was an error processing your request." };
             setMessages(prevMessages => [...prevMessages, errorMessage]);
+        } finally {
+            setIsTyping(false);
         }
     };
 
@@ -46,7 +48,7 @@ function Chat({ isOpen, onClose }) {
         if (chatAreaRef.current) {
             chatAreaRef.current.scrollTop = chatAreaRef.current.scrollHeight;
         }
-    }, [messages]);
+    }, [messages, isTyping]);
 
     return (
         <Modal show={isOpen} onClose={onClose}>
@@ -77,6 +79,13 @@ function Chat({ isOpen, onClose }) {
                             </div>
                         </div>
                     ))}
+                    {isTyping && (
+                        <div className="text-left mb-2">
+                            <div className="inline-block bg-gray-200 rounded-lg p-2 text-gray-500 italic">
+                                Typing...
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="flex">
                     <input
@@ -85,13 +94,15 @@ function Chat({ isOpen, onClose }) {
                         value={userInput}
                         onChange={(e) => setUserInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        className="flex-grow border rounded-l-lg p-2"
+                        disabled={isTyping}
+                        className="flex-grow border rounded-l-lg p-2 disabled:bg-gray-100"
                         placeholder="Type your message..."
                     />
                     <button
                         id="send-button"
                         onClick={sendMessage}
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-r-lg"
+                        disabled={isTyping}
+                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-r-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Send
                     </button>

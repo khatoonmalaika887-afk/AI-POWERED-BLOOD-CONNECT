@@ -1,4 +1,5 @@
 import express from "express";
+import upload from "../utils/Multer.js";
 import {
     getReceivers,
     getReceiverById,
@@ -15,8 +16,8 @@ const router = express.Router();
 
 router.get("/", getReceivers);
 router.get("/:id", getReceiverById);
-router.post("/", createReceiver);
-router.put("/:id", updateReceiver);
+router.post("/", upload.single("image"), createReceiver);
+router.put("/:id", upload.single("image"), updateReceiver);
 router.delete("/:id", deleteReceiver);
 router.patch("/:id/toggle-status", activateDeactivateReceiver);
 

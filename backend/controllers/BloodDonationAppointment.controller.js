@@ -1,10 +1,21 @@
 import BloodDonationAppointment from "../models/BloodDonationAppointment.model.js";
 import Donor from "../models/donor.model.js";
+import Hospital from "../models/hospital.model.js";
+import HospitalAdmin from "../models/HospitalAdmin.model.js";
+import BloodInventory from "../models/BloodInventory.model.js";
 import sendNotification from "../utils/notification.js";
+import { updateDonationHistory } from "./donor.controller.js";
+
 // Get all blood donation appointments
 export const getAppointments = async (req, res) => {
     try {
-        const appointments = await BloodDonationAppointment.find();
+        const appointments = await BloodDonationAppointment.findAll({
+            include: [
+                { model: Hospital, as: 'hospital', attributes: ['name'] },
+                { model: Donor, as: 'donor', attributes: ['firstName', 'lastName'] },
+                { model: HospitalAdmin, as: 'hospitalAdmin', attributes: ['firstName', 'lastName'] },
+            ],
+        });
         res.json(appointments);
     } catch (error) {
         res.status(500).json({ message: "Error fetching appointments" });
@@ -14,7 +25,7 @@ export const getAppointments = async (req, res) => {
 // Get a single blood donation appointment by ID
 export const getAppointmentById = async (req, res) => {
     try {
-        const appointment = await BloodDonationAppointment.findById(req.params.id);
+        const appointment = await BloodDonationAppointment.findByPk(req.params.id);
         if (!appointment) return res.status(404).json({ message: "Appointment not found" });
         res.json(appointment);
     } catch (error) {
@@ -24,34 +35,27 @@ export const getAppointmentById = async (req, res) => {
 
 export const createAppointment = async (req, res) => {
     try {
-        const { hospitalId,
-
- donorId, appointmentDate, appointmentTime } = req.body;
+        const { hospitalId, donorId, appointmentDate, appointmentTime } = req.body;
 
         // Validate required fields
         if (!hospitalId || !donorId || !appointmentDate || !appointmentTime) {
             return res.status(400).json({ message: 'All fields are required' });
         }
 
-        // Import models
-        const BloodDonationAppointment = (await import('../models/BloodDonationAppointment.model.js')).default; // Adjust path
-        const Donor = (await import('../models/donor.model.js')).default;
-        const Hospital = (await import('../models/hospital.model.js')).default;
-
         // Validate donor exists
-        const donor = await Donor.findById(donorId);
+        const donor = await Donor.findByPk(donorId);
         if (!donor) {
             return res.status(404).json({ message: 'Donor not found' });
         }
 
         // Validate hospital exists
-        const hospital = await Hospital.findById(hospitalId);
+        const hospital = await Hospital.findByPk(hospitalId);
         if (!hospital) {
             return res.status(404).json({ message: 'Hospital not found' });
         }
 
         // Create new appointment
-        const newAppointment = new BloodDonationAppointment({
+        const newAppointment = await BloodDonationAppointment.create({
             progressStatus: 'Not Started',
             donorId,
             hospitalId,
@@ -60,14 +64,7 @@ export const createAppointment = async (req, res) => {
         });
 
         // Update donor's appointment status
-        await Donor.findByIdAndUpdate(donorId, { appointmentStatus: true });
-
-        // Save appointment
-        await newAppointment.save();
-
-        // Debug: Log fetched data
-        console.log('Donor:', donor);
-        console.log('Hospital:', hospital);
+        await Donor.update({ appointmentStatus: true }, { where: { id: donorId } });
 
         // Construct notification message
         const message = `Dear ${donor.firstName || 'Donor'} ${donor.lastName || ''}, your session has been booked at ${hospital.name || 'Hospital'} on ${appointmentDate} at ${appointmentTime}.`;
@@ -110,19 +107,19 @@ export const createAppointment = async (req, res) => {
 export const updateAppointmentDateTime = async (req, res) => {
     try {
         const { appointmentDate, appointmentTime, hospitalAdminId } = req.body;
-        const updatedAppointment = await BloodDonationAppointment.findByIdAndUpdate(
-            req.params.id,
-            { 
-                appointmentDate, 
-                appointmentTime, 
+        const [affectedCount] = await BloodDonationAppointment.update(
+            {
+                appointmentDate,
+                appointmentTime,
                 activeStatus: "Re-Scheduled",
                 hospitalAdminId
             },
-            { new: true }
+            { where: { id: req.params.id } }
         );
 
-        if (!updatedAppointment) return res.status(404).json({ message: "Appointment not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Appointment not found" });
 
+        const updatedAppointment = await BloodDonationAppointment.findByPk(req.params.id);
         res.status(200).json(updatedAppointment);
     } catch (error) {
         res.status(500).json({ message: "Error updating appointment date and time" });
@@ -133,18 +130,18 @@ export const updateAppointmentDateTime = async (req, res) => {
 export const cancelAppointment = async (req, res) => {
     try {
         const { hospitalAdminId } = req.body;
-        const canceledAppointment = await BloodDonationAppointment.findByIdAndUpdate(
-            req.params.id,
+        const [affectedCount] = await BloodDonationAppointment.update(
             {
                 activeStatus: "Cancelled",
                 progressStatus: "Cancelled",
                 hospitalAdminId
             },
-            { new: true }
+            { where: { id: req.params.id } }
         );
 
-        if (!canceledAppointment) return res.status(404).json({ message: "Appointment not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Appointment not found" });
 
+        const canceledAppointment = await BloodDonationAppointment.findByPk(req.params.id);
         res.status(200).json(canceledAppointment);
     } catch (error) {
         res.status(500).json({ message: "Error cancelling appointment" });
@@ -155,18 +152,18 @@ export const cancelAppointment = async (req, res) => {
 export const acceptAppointment = async (req, res) => {
     try {
         const { hospitalAdminId } = req.body;
-        const acceptAppointment = await BloodDonationAppointment.findByIdAndUpdate(
-            req.params.id,
-            { 
-                activeStatus: "Accepted", 
-                hospitalAdminId 
+        const [affectedCount] = await BloodDonationAppointment.update(
+            {
+                activeStatus: "Accepted",
+                hospitalAdminId
             },
-            { new: true }
+            { where: { id: req.params.id } }
         );
 
-        if (!acceptAppointment) return res.status(404).json({ message: "Appointment not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Appointment not found" });
 
-        res.status(200).json(acceptAppointment);
+        const acceptedAppointment = await BloodDonationAppointment.findByPk(req.params.id);
+        res.status(200).json(acceptedAppointment);
     } catch (error) {
         res.status(500).json({ message: "Error accepting appointment" });
     }
@@ -176,39 +173,71 @@ export const acceptAppointment = async (req, res) => {
 export const arrivedForAppointment = async (req, res) => {
     try {
         const { receiptNumber } = req.body;
-        const arrivedForAppointment = await BloodDonationAppointment.findByIdAndUpdate(
-            req.params.id,
-            { 
+        const [affectedCount] = await BloodDonationAppointment.update(
+            {
                 receiptNumber,
-                progressStatus: "In Progress" 
+                progressStatus: "In Progress"
             },
-            { new: true }
+            { where: { id: req.params.id } }
         );
 
-        if (!arrivedForAppointment) return res.status(404).json({ message: "Appointment not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Appointment not found" });
 
-        res.status(200).json(arrivedForAppointment);
+        const arrivedAppointment = await BloodDonationAppointment.findByPk(req.params.id);
+        res.status(200).json(arrivedAppointment);
     } catch (error) {
         res.status(500).json({ message: "Error marking appointment as arrived" });
     }
 };
 
-// Complete a blood donation appointment
+// Complete a blood donation appointment - this is the actual "donation happened"
+// event: records the donor's donation history/gamification and credits the
+// hospital's blood inventory with the units collected.
 export const completeAppointment = async (req, res) => {
     try {
-        const completedAppointment = await BloodDonationAppointment.findByIdAndUpdate(
-            req.params.id,
-            { 
-                progressStatus: "Completed"
-            },
-            { new: true }
-        );
-
-        if (!completedAppointment) {
+        const appointment = await BloodDonationAppointment.findByPk(req.params.id);
+        if (!appointment) {
             return res.status(404).json({ message: "Appointment not found" });
         }
+
+        // Guard against double-processing (e.g. a duplicate click) recording the
+        // donation twice or crediting inventory twice for the same appointment.
+        if (appointment.progressStatus === "Completed") {
+            return res.status(200).json(appointment);
+        }
+
+        const units = parseInt(req.body?.units, 10) > 0 ? parseInt(req.body.units, 10) : 1;
+
+        await appointment.update({ progressStatus: "Completed" });
+
+        const [donor, hospital] = await Promise.all([
+            Donor.findByPk(appointment.donorId),
+            Hospital.findByPk(appointment.hospitalId),
+        ]);
+
+        if (donor) {
+            await updateDonationHistory(appointment.donorId, {
+                bloodType: donor.bloodType,
+                units,
+                hospitalName: hospital?.name || "Unknown Hospital",
+            });
+        }
+
+        if (donor?.bloodType && appointment.hospitalId) {
+            const expirationDate = new Date();
+            expirationDate.setDate(expirationDate.getDate() + 42);
+            await BloodInventory.create({
+                hospitalId: appointment.hospitalId,
+                bloodType: donor.bloodType,
+                availableStocks: units,
+                expirationDate,
+            });
+        }
+
+        const completedAppointment = await BloodDonationAppointment.findByPk(req.params.id);
         res.status(200).json(completedAppointment);
     } catch (error) {
+        console.error("Error completing appointment:", error);
         res.status(500).json({ message: "Error completing appointment" });
     }
 };
@@ -216,8 +245,8 @@ export const completeAppointment = async (req, res) => {
 // Delete a blood donation appointment
 export const deleteAppointment = async (req, res) => {
     try {
-        const deletedAppointment = await BloodDonationAppointment.findByIdAndDelete(req.params.id);
-        if (!deletedAppointment) return res.status(404).json({ message: "Appointment not found" });
+        const deletedCount = await BloodDonationAppointment.destroy({ where: { id: req.params.id } });
+        if (deletedCount === 0) return res.status(404).json({ message: "Appointment not found" });
 
         res.json({ message: "Appointment deleted successfully" });
     } catch (error) {
@@ -229,7 +258,13 @@ export const deleteAppointment = async (req, res) => {
 export const getBloodDonationAppointmentByDonorId = async (req, res) => {
     try {
         const { id } = req.params;
-        const appointments = await BloodDonationAppointment.find({ donorId: id });
+        const appointments = await BloodDonationAppointment.findAll({
+            where: { donorId: id },
+            include: [
+                { model: Hospital, as: 'hospital', attributes: ['name'] },
+                { model: HospitalAdmin, as: 'hospitalAdmin', attributes: ['firstName', 'lastName'] },
+            ],
+        });
         if (!appointments || appointments.length === 0) return res.status(404).json({ message: "Appointments not found" });
         res.json(appointments);
     } catch (error) {
@@ -241,10 +276,14 @@ export const getBloodDonationAppointmentByDonorId = async (req, res) => {
 export const getBloodDonationAppointmentByHospitalId = async (req, res) => {
     try {
         const { id } = req.params;
-const appointments = await BloodDonationAppointment.find({ hospitalId: id })
-    .populate('hospitalId', 'name')
-    .populate('donorId', 'firstName lastName')
-    .populate('hospitalAdminId','firstName lastName')
+        const appointments = await BloodDonationAppointment.findAll({
+            where: { hospitalId: id },
+            include: [
+                { model: Hospital, as: 'hospital', attributes: ['name'] },
+                { model: Donor, as: 'donor', attributes: ['firstName', 'lastName'] },
+                { model: HospitalAdmin, as: 'hospitalAdmin', attributes: ['firstName', 'lastName'] },
+            ],
+        });
         if (!appointments || appointments.length === 0) return res.status(404).json({ message: "Appointments not found" });
         res.json(appointments);
     } catch (error) {
@@ -255,17 +294,17 @@ const appointments = await BloodDonationAppointment.find({ hospitalId: id })
 // Cancel appointment by donor
 export const cancelAppointmentDonor = async (req, res) => {
     try {
-        const canceledAppointment = await BloodDonationAppointment.findByIdAndUpdate(
-            req.params.id,
+        const [affectedCount] = await BloodDonationAppointment.update(
             {
                 activeStatus: "Cancelled",
                 progressStatus: "Cancelled"
             },
-            { new: true }
+            { where: { id: req.params.id } }
         );
 
-        if (!canceledAppointment) return res.status(404).json({ message: "Appointment not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Appointment not found" });
 
+        const canceledAppointment = await BloodDonationAppointment.findByPk(req.params.id);
         res.status(200).json(canceledAppointment);
     } catch (error) {
         res.status(500).json({ message: "Error cancelling appointment" });

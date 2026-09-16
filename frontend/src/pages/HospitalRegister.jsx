@@ -4,10 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { useHospital } from "../hooks/hospital";
 import { toast } from 'react-toastify';
 import { FaGoogle, FaFacebook, FaInstagram } from "react-icons/fa";
+import background from '../assets/bg1.jpg';
 
 export default function HospitalRegister() {
   const navigate = useNavigate();
-  const { createHospital, loading } = useHospital();
+  const { registerHospital, loading } = useHospital();
   const [formData, setFormData] = useState({
     name: "",
     city: "",
@@ -100,8 +101,8 @@ export default function HospitalRegister() {
     });
 
     try {
-      await createHospital(hospitalData);
-      toast.success('Registration successful! Please log in.');
+      const result = await registerHospital(hospitalData);
+      toast.success(result?.message || 'Registration submitted! Please wait for admin approval before logging in.');
       navigate("/hospital-login");
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Error registering hospital');
@@ -109,7 +110,10 @@ export default function HospitalRegister() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#3E0703] via-[#660B05] to-[#8C1007] p-6">
+    <div
+      className="flex min-h-screen items-center justify-center p-6 bg-cover bg-center"
+      style={{ backgroundImage: `url(${background})` }}
+    >
       <Card className="w-full max-w-5xl p-12 shadow-xl rounded-3xl bg-white bg-opacity-90 backdrop-blur-xl border border-red-100 transition-all duration-300 hover:shadow-2xl">
         <h2 className="text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-pink-600 mb-10 drop-shadow-lg">
           Hospital Registration

@@ -139,7 +139,7 @@ export default function AppointmentD() {
     setLoading(true);
     setErrorMessage("");
     try {
-      await updateEvaluationDateTime(selectedEvaluation._id, newDate, newTime, hospitalAdminId);
+      await updateEvaluationDateTime(selectedEvaluation.id, newDate, newTime, hospitalAdminId);
       setOpenRescheduleModal(false);
     } catch (err) {
       setErrorMessage("Failed to reschedule.");
@@ -160,7 +160,7 @@ export default function AppointmentD() {
     setLoading(true);
     setErrorMessage("");
     try {
-      await arrivedForEvaluation(selectedEvaluation._id, receiptNumber);
+      await arrivedForEvaluation(selectedEvaluation.id, receiptNumber);
       setOpenArrivedModal(false);
     } catch (err) {
       setErrorMessage("Failed to confirm arrival.");
@@ -182,7 +182,7 @@ export default function AppointmentD() {
     setLoading(true);
     setErrorMessage("");
     try {
-      await completeEvaluation(selectedEvaluation._id, evaluationResult, selectedFile);
+      await completeEvaluation(selectedEvaluation.id, evaluationResult, selectedFile);
       setOpenUploadModal(false);
       setSelectedFile(null);
       setEvaluationResult("");
@@ -207,7 +207,7 @@ export default function AppointmentD() {
     if (!validateFeedbackForm()) return;
     const feedbackData = {
       donorId: userId,
-      sessionId: selectedEvaluation._id,
+      sessionId: selectedEvaluation.id,
       sessionModel: "HealthEvaluation",
       subject,
       comments,
@@ -306,8 +306,8 @@ export default function AppointmentD() {
           <Table.Body>
             {filteredEvaluations.length > 0 ? (
               filteredEvaluations.map((evaluation) => (
-                <Table.Row key={evaluation._id} className="bg-white">
-                  <Table.Cell>{`${evaluation.donorId?.firstName || ""} ${evaluation.donorId?.lastName || ""}` || "N/A"}</Table.Cell>
+                <Table.Row key={evaluation.id} className="bg-white">
+                  <Table.Cell>{evaluation.donor ? `${evaluation.donor.firstName} ${evaluation.donor.lastName}` : "N/A"}</Table.Cell>
                   <Table.Cell>{new Date(evaluation.evaluationDate).toLocaleDateString()}</Table.Cell>
                   <Table.Cell>
                     <span
@@ -337,7 +337,7 @@ export default function AppointmentD() {
                       {evaluation.passStatus}
                     </span>
                   </Table.Cell>
-                  <Table.Cell>{evaluation.hospitalId?.name || "N/A"}</Table.Cell>
+                  <Table.Cell>{evaluation.hospital?.name || "N/A"}</Table.Cell>
                   <Table.Cell>
                     <div className="flex gap-2">
                       <Button size="xs" color="blue" onClick={() => handleDetailsClick(evaluation)}>
@@ -361,7 +361,7 @@ export default function AppointmentD() {
                               <Button
                                 size="xs"
                                 color="gray"
-                                onClick={() => cancelEvaluation(evaluation._id, hospitalAdminId, evaluation.donorId)}
+                                onClick={() => cancelEvaluation(evaluation.id, hospitalAdminId, evaluation.donorId)}
                               >
                                 Cancel
                               </Button>
@@ -372,7 +372,7 @@ export default function AppointmentD() {
                               <Button
                                 size="xs"
                                 color="gray"
-                                onClick={() => acceptEvaluation(evaluation._id, hospitalAdminId)}
+                                onClick={() => acceptEvaluation(evaluation.id, hospitalAdminId)}
                               >
                                 Accept
                               </Button>
@@ -382,7 +382,7 @@ export default function AppointmentD() {
                             <Button
                               size="xs"
                               color="failure"
-                              onClick={() => deleteEvaluation(evaluation._id)}
+                              onClick={() => deleteEvaluation(evaluation.id)}
                             >
                               Delete
                             </Button>
@@ -417,7 +417,7 @@ export default function AppointmentD() {
                               <Button
                                 size="xs"
                                 color="gray"
-                                onClick={() => cancelEvaluationDonor(evaluation._id, userId)}
+                                onClick={() => cancelEvaluationDonor(evaluation.id, userId)}
                               >
                                 Cancel
                               </Button>
@@ -428,7 +428,7 @@ export default function AppointmentD() {
                               <Button
                                 size="xs"
                                 color="gray"
-                                onClick={() => acceptEvaluation(evaluation._id, hospitalAdminId)}
+                                onClick={() => acceptEvaluation(evaluation.id, hospitalAdminId)}
                               >
                                 Accept
                               </Button>

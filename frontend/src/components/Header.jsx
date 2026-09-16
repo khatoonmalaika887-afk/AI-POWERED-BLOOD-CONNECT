@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Navbar, TextInput, Dropdown, Avatar, Modal, Label, Select, Spinner } from 'flowbite-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Logo from '../assets/logo.svg';
 import { useLogout } from '../hooks/useLogout';
@@ -13,6 +13,7 @@ import { useDonor } from '../hooks/donor';
 
 export default function Header() {
   const path = useLocation().pathname;
+  const navigate = useNavigate();
   const { logout } = useLogout();
   const { user } = useAuthContext();
   const { secondUser } = useSecondAuth();
@@ -29,6 +30,7 @@ export default function Header() {
   const Hospital = user?.role === 'Hospital';
   const HospitalAdmin = secondUser?.role === 'HospitalAdmin';
   const Manager = user?.role === 'Manager';
+  const isLoggedIn = Donor || Hospital || Manager || HospitalAdmin;
 
   const [evalFormData, setEvalFormData] = useState({
     hospitalId: "",
@@ -169,7 +171,7 @@ export default function Header() {
   };
 
   return (
-    <Navbar className='border-b-2 bg-primary'>
+    <Navbar className='relative z-50 border-b-2 bg-primary'>
       {/* Brand Logo */}
       <Link to="/" className='self-center whitespace-nowrap text-sm sm:text-xl font-semibold dark:text-white'>
         <div className='flex flex-wrap self-center content-center justify-center gap-1'>
@@ -212,12 +214,8 @@ export default function Header() {
               <span className="block text-sm font-semibold">{user.userObj.lastName + " " + user.userObj.firstName || 'User'}</span>
               <span className="block text-sm text-gray-500 truncate">{user.userObj.email}</span>
             </Dropdown.Header>
-            <Dropdown.Item>
-              <Link to="/profile">Profile</Link>
-            </Dropdown.Item>
-            <Dropdown.Item>
-              <Link to="/dashboard">Dashboard</Link>
-            </Dropdown.Item>
+            <Dropdown.Item onClick={() => navigate('/profile')}>Profile</Dropdown.Item>
+            <Dropdown.Item onClick={() => navigate('/dashboard')}>Dashboard</Dropdown.Item>
             <Dropdown.Divider />
             <Dropdown.Item onClick={handleClick}>Logout</Dropdown.Item>
           </Dropdown>
@@ -245,15 +243,9 @@ export default function Header() {
               <span className="block text-sm font-semibold">{secondUser.userObj.firstName + " " + secondUser.userObj.lastName || 'User'}</span>
               <span className="block text-sm text-gray-500 truncate">{secondUser.userObj.email}</span>
             </Dropdown.Header>
-            <Dropdown.Item>
-              <Link to="/profile">Hospital Profile</Link>
-            </Dropdown.Item>
-            <Dropdown.Item>
-              <Link to="/adminProfile">Admin Profile</Link>
-            </Dropdown.Item>
-            <Dropdown.Item>
-              <Link to="/dashboard">Dashboard</Link>
-            </Dropdown.Item>
+            <Dropdown.Item onClick={() => navigate('/profile')}>Hospital Profile</Dropdown.Item>
+            <Dropdown.Item onClick={() => navigate('/adminProfile')}>Admin Profile</Dropdown.Item>
+            <Dropdown.Item onClick={() => navigate('/dashboard')}>Dashboard</Dropdown.Item>
             <Dropdown.Divider />
             <Dropdown.Item onClick={handleClick}>Logout</Dropdown.Item>
           </Dropdown>
@@ -268,12 +260,8 @@ export default function Header() {
               <span className="block text-sm font-semibold">{user.userObj.lastName + " " + user.userObj.firstName || 'User'}</span>
               <span className="block text-sm text-gray-500 truncate">{user.userObj.email}</span>
             </Dropdown.Header>
-            <Dropdown.Item>
-              <Link to="/profile">Profile</Link>
-            </Dropdown.Item>
-            <Dropdown.Item>
-              <Link to="/dashboard">Dashboard</Link>
-            </Dropdown.Item>
+            <Dropdown.Item onClick={() => navigate('/profile')}>Profile</Dropdown.Item>
+            <Dropdown.Item onClick={() => navigate('/dashboard')}>Dashboard</Dropdown.Item>
             <Dropdown.Divider />
             <Dropdown.Item onClick={handleClick}>Logout</Dropdown.Item>
           </Dropdown>
@@ -282,18 +270,18 @@ export default function Header() {
 
       {/* Navbar Links */}
       <Navbar.Collapse>
-        <Navbar.Link active={path === '/'} as={'div'}>
-          <Link to='/'>Home</Link>
-        </Navbar.Link>
-        <Navbar.Link active={path === '/donor-login'} as={'div'}>
-          <Link to='/donor-login'>Donor Portal</Link>
-        </Navbar.Link>
-        <Navbar.Link active={path === '/receiver-login'} as={'div'}>
-          <Link to='/receiver-login'>Receiver Portal</Link>
-        </Navbar.Link>
-        <Navbar.Link active={path === '/hospital-login'} as={'div'}>
-          <Link to='/hospital-login'>Hospital Portal</Link>
-        </Navbar.Link>
+        {!isLoggedIn && (
+          <Dropdown
+            inline
+            arrowIcon={true}
+            label="Login"
+            className="min-w-[10rem]"
+          >
+            <Dropdown.Item onClick={() => navigate('/donor-login')}>Donor Portal</Dropdown.Item>
+            <Dropdown.Item onClick={() => navigate('/receiver-login')}>Receiver Portal</Dropdown.Item>
+            <Dropdown.Item onClick={() => navigate('/hospital-login')}>Hospital Portal</Dropdown.Item>
+          </Dropdown>
+        )}
         <Navbar.Link active={path === '/EBR'} as={'div'}>
           <Link to='/EBR'>Emergency Blood Request</Link>
         </Navbar.Link>
@@ -303,14 +291,8 @@ export default function Header() {
         <Navbar.Link active={path === '/chatbot'} as={'div'}>
           <Link to='/chatbot'>Chatbot</Link>
         </Navbar.Link>
-        <Navbar.Link active={path === '/contactus'} as={'div'}>
-          <Link to='/contactus'>Contact Us</Link>
-        </Navbar.Link>
         <Navbar.Link active={path === '/donate'} as={'div'}>
           <Link to='/donate'>Donate</Link>
-        </Navbar.Link>
-        <Navbar.Link active={path === '/language'} as={'div'}>
-          <Link to='/language'>Language</Link>
         </Navbar.Link>
       </Navbar.Collapse>
 

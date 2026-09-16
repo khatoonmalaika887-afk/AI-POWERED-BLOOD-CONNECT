@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useReceiver } from "../hooks/receiver";
 import { toast } from "react-toastify";
 import SocialLogin from '../components/SocialLogin';
+import background from '../assets/bg1.jpg';
 
 export default function ReceiverLogin() {
   const navigate = useNavigate();
@@ -59,7 +60,10 @@ export default function ReceiverLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center blood-themed-bg py-12 px-4 sm:px-6 lg:px-8">
+    <div
+      className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-cover bg-center"
+      style={{ backgroundImage: `url(${background})` }}
+    >
       <div className="login-container animate-fade-in">
         <div className="login-header">
           <h2 className="text-3xl font-extrabold">Receiver Login</h2>

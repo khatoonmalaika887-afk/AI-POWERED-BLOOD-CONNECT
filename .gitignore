@@ -24,3 +24,25 @@ dist-ssr
 *.sw?
 .env
 .pdf
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Backend uploads
+backend/uploads/
+
+# Build files
+dist/
+build/
+
+# IDE
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db

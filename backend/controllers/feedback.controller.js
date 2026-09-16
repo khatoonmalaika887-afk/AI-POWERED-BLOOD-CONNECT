@@ -1,9 +1,13 @@
 import Feedback from "../models/feedback.model.js";
+import Donor from "../models/donor.model.js";
+import SystemManager from "../models/SystemManager.model.js";
+import BloodDonationAppointment from "../models/BloodDonationAppointment.model.js";
+import HealthEvaluation from "../models/HealthEvaluation.model.js";
 
 // Get all feedbacks
 export const getFeedbacks = async (req, res) => {
     try {
-        const feedbacks = await Feedback.find();
+        const feedbacks = await Feedback.findAll();
         res.json(feedbacks);
     } catch (error) {
         res.status(500).json({ message: "Error fetching feedbacks" });
@@ -13,9 +17,18 @@ export const getFeedbacks = async (req, res) => {
 // Get a single feedback by ID
 export const getFeedbackById = async (req, res) => {
     try {
-        const feedback = await Feedback.findById(req.params.id).populate("donorId systemManagerId sessionId");
+        const feedback = await Feedback.findByPk(req.params.id, {
+            include: [
+                { model: Donor, as: 'donor', attributes: { exclude: ['password'] } },
+                { model: SystemManager, as: 'systemManager', attributes: { exclude: ['password'] } },
+            ],
+        });
         if (!feedback) return res.status(404).json({ message: "Feedback not found" });
-        res.json(feedback);
+
+        const SessionModel = feedback.sessionModel === 'HealthEvaluation' ? HealthEvaluation : BloodDonationAppointment;
+        const session = await SessionModel.findByPk(feedback.sessionId);
+
+        res.json({ ...feedback.toJSON(), session });
     } catch (error) {
         res.status(500).json({ message: "Error fetching feedback" });
     }
@@ -31,7 +44,7 @@ export const createFeedback = async (req, res) => {
             return res.status(400).json({ message: "All required fields must be filled" });
         }
 
-        const newFeedback = new Feedback({
+        const newFeedback = await Feedback.create({
             donorId,
             sessionModel,
             sessionId,
@@ -41,7 +54,6 @@ export const createFeedback = async (req, res) => {
             starRating: starRating || null,
         });
 
-        await newFeedback.save();
         res.status(201).json(newFeedback);
     } catch (error) {
         res.status(400).json({ message: "Error creating feedback" });
@@ -51,14 +63,13 @@ export const createFeedback = async (req, res) => {
 // Update feedback details
 export const updateFeedback = async (req, res) => {
     try {
-        const updatedFeedback = await Feedback.findByIdAndUpdate(
-            req.params.id,
-            { $set: req.body },
-            { new: true, runValidators: true }
-        );
+        const [affectedCount] = await Feedback.update(req.body, {
+            where: { id: req.params.id },
+        });
 
-        if (!updatedFeedback) return res.status(404).json({ message: "Feedback not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Feedback not found" });
 
+        const updatedFeedback = await Feedback.findByPk(req.params.id);
         res.status(200).json(updatedFeedback);
     } catch (error) {
         res.status(500).json({ message: "Error updating feedback" });
@@ -68,8 +79,8 @@ export const updateFeedback = async (req, res) => {
 // Delete a feedback
 export const deleteFeedback = async (req, res) => {
     try {
-        const deletedFeedback = await Feedback.findByIdAndDelete(req.params.id);
-        if (!deletedFeedback) return res.status(404).json({ message: "Feedback not found" });
+        const deletedCount = await Feedback.destroy({ where: { id: req.params.id } });
+        if (deletedCount === 0) return res.status(404).json({ message: "Feedback not found" });
 
         res.json({ message: "Feedback deleted successfully" });
     } catch (error) {

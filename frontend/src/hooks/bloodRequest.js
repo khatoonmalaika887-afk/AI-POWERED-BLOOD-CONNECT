@@ -30,7 +30,7 @@ export const useBloodRequest = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`/api/blood-request/receiver/${receiverId}`, {
+      const response = await axios.get(`/api/receiver/${receiverId}/blood-requests`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -86,7 +86,7 @@ export const useBloodRequest = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/blood-request/search-donors', {
+      const response = await axios.get('/api/receiver/search/donors', {
         params: { bloodType, city },
         headers: {
           Authorization: `Bearer ${token}`,
@@ -105,7 +105,7 @@ export const useBloodRequest = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/blood-request/hospital-stock', {
+      const response = await axios.get('/api/blood-request/stock/check', {
         params: { bloodType, city },
         headers: {
           Authorization: `Bearer ${token}`,

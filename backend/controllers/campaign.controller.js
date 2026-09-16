@@ -52,14 +52,14 @@ export const createCampaign = async (req, res) => {
 // Update campaign
 export const updateCampaign = async (req, res) => {
     try {
-        const updatedCampaign = await Campaign.update(req.body, {
+        const [affectedCount] = await Campaign.update(req.body, {
             where: { id: req.params.id },
-            returning: true
         });
 
-        if (updatedCampaign[0] === 0) return res.status(404).json({ message: "Campaign not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Campaign not found" });
 
-        res.status(200).json(updatedCampaign[1][0]);
+        const updatedCampaign = await Campaign.findByPk(req.params.id);
+        res.status(200).json(updatedCampaign);
     } catch (error) {
         res.status(500).json({ message: "Error updating campaign" });
     }

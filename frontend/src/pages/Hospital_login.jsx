@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useSignin } from "../hooks/useSignin";
 import { toast } from 'react-toastify';
 import SocialLogin from '../components/SocialLogin';
+import background from '../assets/bg1.jpg';
 
 export default function HospitalLogin() {
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ export default function HospitalLogin() {
     } catch (err) {
       // Handle network or unexpected errors
       const errorMsg =
-        err?.response?.data?.error ||
+        err?.response?.data?.message ||
         (err.message === 'Network Error'
           ? 'Network error. Please check your connection.'
           : 'Login failed. Please try again.');
@@ -75,7 +76,10 @@ export default function HospitalLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center blood-themed-bg py-12 px-4 sm:px-6 lg:px-8">
+    <div
+      className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-cover bg-center"
+      style={{ backgroundImage: `url(${background})` }}
+    >
       <div className="login-container animate-fade-in">
         <div className="login-header">
           <h2 className="text-3xl font-extrabold">Hospital Login</h2>
@@ -151,9 +155,20 @@ export default function HospitalLogin() {
               'Login'
             )}
           </Button>
-          
-          <SocialLogin 
-            userType="hospital" 
+
+          <div className="text-center space-y-2">
+            <button
+              type="button"
+              onClick={() => navigate("/hospital-register")}
+              className="text-red-600 font-semibold hover:text-pink-600 hover:underline focus:outline-none transition-colors duration-200"
+              disabled={loading}
+            >
+              Don't have an account? Register
+            </button>
+          </div>
+
+          <SocialLogin
+            userType="hospital"
             onLoginSuccess={(data) => {
               localStorage.setItem('user', JSON.stringify(data));
               navigate('/HospitalAdminLogin');

@@ -16,9 +16,11 @@ export const generateHealthEvaluationReport = async (req, res) => {
   try {
     const { userId } = req.query;
 
-    const evaluations = await HealthEvaluation.find({ donorId: userId })
-      .populate('donorId', 'firstName lastName email')
-      .sort({ evaluationDate: -1 });
+    const evaluations = await HealthEvaluation.findAll({
+      where: { donorId: userId },
+      include: [{ model: Donor, as: 'donor', attributes: ['firstName', 'lastName', 'email'] }],
+      order: [['evaluationDate', 'DESC']],
+    });
 
     if (!evaluations.length) {
       return res.status(404).json({ success: false, message: 'No evaluations found for this donor' });
@@ -40,8 +42,8 @@ export const generateHealthEvaluationReport = async (req, res) => {
       doc.image(logoPath, 40, 30, { width: 80 });
     }
 
-    const donorName = `${evaluations[0]?.donorId?.firstName || ''} ${evaluations[0]?.donorId?.lastName || ''}`;
-    const donorEmail = evaluations[0]?.donorId?.email || '';
+    const donorName = `${evaluations[0]?.donor?.firstName || ''} ${evaluations[0]?.donor?.lastName || ''}`;
+    const donorEmail = evaluations[0]?.donor?.email || '';
 
     // Title
     doc
@@ -97,11 +99,11 @@ export const generateHealthEvaluationReport = async (req, res) => {
       const bgColor = index % 2 === 0 ? '#ffffff' : '#f6f6f6';
       doc.rect(startX, y, totalWidth, rowHeight).fill(bgColor).stroke();
 
-      const donor = `${item.donorId?.firstName || ''} ${item.donorId?.lastName || ''}`;
+      const donor = `${item.donor?.firstName || ''} ${item.donor?.lastName || ''}`;
       const row = [
         index + 1,
         donor,
-        item.evaluationDate?.toDateString() || 'N/A',
+        item.evaluationDate ? new Date(item.evaluationDate).toDateString() : 'N/A',
         item.evaluationTime || 'N/A',
         item.passStatus || 'N/A',
         item.progressStatus || 'N/A',
@@ -150,10 +152,14 @@ export const generateHealthEvaluationReportByHospital = async (req, res) => {
   try {
     const { userId } = req.query;
 
-    const evaluations = await HealthEvaluation.find({ hospitalId: userId })
-      .populate('hospitalId', 'name')
-      .populate('donorId', 'firstName lastName')
-      .sort({ evaluationDate: -1 });
+    const evaluations = await HealthEvaluation.findAll({
+      where: { hospitalId: userId },
+      include: [
+        { model: Hospital, as: 'hospital', attributes: ['name'] },
+        { model: Donor, as: 'donor', attributes: ['firstName', 'lastName'] },
+      ],
+      order: [['evaluationDate', 'DESC']],
+    });
 
     if (!evaluations.length) {
       return res.status(404).json({ success: false, message: 'No evaluations found for this hospital' });
@@ -169,7 +175,7 @@ export const generateHealthEvaluationReportByHospital = async (req, res) => {
 
     doc.pipe(fs.createWriteStream(filePath));
 
-    const hospitalName = evaluations[0]?.hospitalId?.name || 'Hospital';
+    const hospitalName = evaluations[0]?.hospital?.name || 'Hospital';
 
     // Add logo (optional)
     const logoPath = './assets/logo.svg'; // Adjust as per actual backend path
@@ -222,11 +228,11 @@ export const generateHealthEvaluationReportByHospital = async (req, res) => {
         drawHeader();
       }
 
-      const donorName = `${item.donorId?.firstName || ''} ${item.donorId?.lastName || ''}`.trim();
+      const donorName = `${item.donor?.firstName || ''} ${item.donor?.lastName || ''}`.trim();
       const row = [
         index + 1,
         donorName || 'N/A',
-        item.evaluationDate?.toDateString() || 'N/A',
+        item.evaluationDate ? new Date(item.evaluationDate).toDateString() : 'N/A',
         item.evaluationTime || 'N/A',
         item.passStatus,
         item.progressStatus,
@@ -282,9 +288,11 @@ export const generateInventoryReport = async (req, res) => {
     // Update expired flags first
     await BloodInventory.updateExpiredStatus();
 
-    const inventoryItems = await BloodInventory.find({ hospitalId: userId })
-      .populate('hospitalId', 'name')
-      .select('bloodType availableStocks expirationDate expiredStatus createdAt updatedAt');
+    const inventoryItems = await BloodInventory.findAll({
+      where: { hospitalId: userId },
+      include: [{ model: Hospital, as: 'hospital', attributes: ['name'] }],
+      attributes: ['id', 'bloodType', 'availableStocks', 'expirationDate', 'expiredStatus', 'createdAt', 'updatedAt'],
+    });
 
     if (!inventoryItems.length) {
       return res.status(404).json({ success: false, message: 'No inventory found for this hospital' });
@@ -300,7 +308,7 @@ export const generateInventoryReport = async (req, res) => {
 
     doc.pipe(fs.createWriteStream(filePath));
 
-    const hospitalName = inventoryItems[0]?.hospitalId?.name || 'Hospital';
+    const hospitalName = inventoryItems[0]?.hospital?.name || 'Hospital';
 
     // Title section
     doc
@@ -363,13 +371,13 @@ export const generateInventoryReport = async (req, res) => {
         index + 1,
         item.bloodType,
         item.availableStocks,
-        item.expirationDate ? item.expirationDate.toDateString() : 'N/A',
-        item.expiredStatus ? 'Yes' : 'No',
-        item.createdAt ? item.createdAt.toDateString() : 'N/A',
-        item.updatedAt ? item.updatedAt.toDateString() : 'N/A',
+        item.expirationDate ? new Date(item.expirationDate).toDateString() : 'N/A',
+        item.expiredStatus === 'Expired' ? 'Yes' : 'No',
+        item.createdAt ? new Date(item.createdAt).toDateString() : 'N/A',
+        item.updatedAt ? new Date(item.updatedAt).toDateString() : 'N/A',
       ];
 
-      if (item.expiredStatus) expiredCount++;
+      if (item.expiredStatus === 'Expired') expiredCount++;
 
       row.forEach((data, i) => {
         doc.fillColor('#000').text(data, x + 5, y + 6, { width: colWidths[i], align: 'left' });
@@ -414,10 +422,10 @@ export const generateInventoryReportByManager = async (req, res) => {
     await BloodInventory.updateExpiredStatus();
 
     // Fetch all inventory items, populating hospital names
-    const inventoryItems = await BloodInventory.find()
-      .populate('hospitalId', 'name')
-      .select('bloodType availableStocks expirationDate expiredStatus createdAt updatedAt hospitalId')
-      .sort({ 'hospitalId.name': 1, bloodType: 1 }); // Sort by hospital name, then blood type
+    const inventoryItems = await BloodInventory.findAll({
+      include: [{ model: Hospital, as: 'hospital', attributes: ['name'] }],
+      order: [[{ model: Hospital, as: 'hospital' }, 'name', 'ASC'], ['bloodType', 'ASC']],
+    });
 
     if (!inventoryItems.length) {
       return res.status(404).json({ success: false, message: 'No inventory found in the system' });
@@ -495,8 +503,8 @@ export const generateInventoryReportByManager = async (req, res) => {
       }
 
       // Add hospital separator if new hospital
-      if (item.hospitalId?._id.toString() !== currentHospitalId) {
-        currentHospitalId = item.hospitalId?._id.toString();
+      if (item.hospitalId !== currentHospitalId) {
+        currentHospitalId = item.hospitalId;
         if (index > 0) {
           y += 10; // Space before new hospital section
           if (y + rowHeight > doc.page.height - 50) {
@@ -512,15 +520,15 @@ export const generateInventoryReportByManager = async (req, res) => {
 
       const row = [
         index + 1,
-        item.hospitalId?.name || 'Unknown Hospital',
+        item.hospital?.name || 'Unknown Hospital',
         item.bloodType,
         item.availableStocks,
-        item.expirationDate ? item.expirationDate.toDateString() : 'N/A',
-        item.expiredStatus ? 'Yes' : 'No',
-        item.createdAt ? item.createdAt.toDateString() : 'N/A',
+        item.expirationDate ? new Date(item.expirationDate).toDateString() : 'N/A',
+        item.expiredStatus === 'Expired' ? 'Yes' : 'No',
+        item.createdAt ? new Date(item.createdAt).toDateString() : 'N/A',
       ];
 
-      if (item.expiredStatus) expiredCount++;
+      if (item.expiredStatus === 'Expired') expiredCount++;
 
       row.forEach((data, i) => {
         doc.fillColor('#000').text(data, x + 5, y + 6, { width: colWidths[i], align: 'left' });
@@ -553,7 +561,7 @@ export const generateInventoryReportByManager = async (req, res) => {
       .text(`Expired Entries: ${expiredCount}`, startX, y + 60);
 
     // Add unique hospitals count
-    const uniqueHospitals = [...new Set(inventoryItems.map(item => item.hospitalId?._id?.toString()))].length;
+    const uniqueHospitals = [...new Set(inventoryItems.map(item => item.hospitalId))].length;
     doc
       .text(`Hospitals Included: ${uniqueHospitals}`, startX, y + 80);
 
@@ -569,9 +577,10 @@ export const generateInventoryReportByManager = async (req, res) => {
 
 export const generateFeedbackReport = async (req, res) => {
   try {
-    const feedbackItems = await Feedback.find()
-      .select('subject comments feedbackType starRating sessionModel createdAt')
-      .sort({ createdAt: -1 });
+    const feedbackItems = await Feedback.findAll({
+      attributes: ['subject', 'comments', 'feedbackType', 'starRating', 'sessionModel', 'createdAt'],
+      order: [['createdAt', 'DESC']],
+    });
 
     const doc = new PDFDocument({ margin: 40, size: 'A4' });
     const fileName = `feedback_report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -679,9 +688,10 @@ export const generateFeedbackReport = async (req, res) => {
 
 export const generateInquiryReport = async (req, res) => {
   try {
-    const inquiries = await Inquiry.find()
-      .select('email subject message category attentiveStatus createdAt')
-      .sort({ createdAt: -1 });
+    const inquiries = await Inquiry.findAll({
+      attributes: ['email', 'subject', 'message', 'category', 'attentiveStatus', 'createdAt'],
+      order: [['createdAt', 'DESC']],
+    });
 
     const doc = new PDFDocument({ margin: 40, size: 'A4' });
     const fileName = `inquiry_report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -790,16 +800,20 @@ export const generateAppointmentReport = async (req, res) => {
   try {
     const { userId } = req.query;
 
-    const appointments = await Appointment.find({ hospitalId: userId })
-      .populate('donorId', 'firstName lastName email')
-      .populate('hospitalId', 'name')
-      .sort({ appointmentDate: -1 });
+    const appointments = await Appointment.findAll({
+      where: { hospitalId: userId },
+      include: [
+        { model: Donor, as: 'donor', attributes: ['firstName', 'lastName', 'email'] },
+        { model: Hospital, as: 'hospital', attributes: ['name'] },
+      ],
+      order: [['appointmentDate', 'DESC']],
+    });
 
     if (!appointments.length) {
       return res.status(404).json({ success: false, message: 'No appointments found for this hospital' });
     }
 
-    const hospitalName = appointments[0]?.hospitalId?.name || 'Hospital';
+    const hospitalName = appointments[0]?.hospital?.name || 'Hospital';
 
     const doc = new PDFDocument({ margin: 40, size: 'A4' });
     const fileName = `appointment_report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -871,10 +885,10 @@ export const generateAppointmentReport = async (req, res) => {
       }
 
       total++;
-      if (item.activeStatus) active++;
+      if (item.activeStatus === 'Accepted') active++;
       if (item.feedbackStatus) feedbackGiven++;
 
-      const donorName = `${item.donorId?.firstName || ''} ${item.donorId?.lastName || ''}`.trim() || 'N/A';
+      const donorName = `${item.donor?.firstName || ''} ${item.donor?.lastName || ''}`.trim() || 'N/A';
       const formattedDate = item.appointmentDate
         ? new Date(item.appointmentDate).toLocaleDateString()
         : 'N/A';
@@ -882,11 +896,11 @@ export const generateAppointmentReport = async (req, res) => {
       const row = [
         index + 1,
         donorName,
-        item.hospitalId?.name || 'N/A',
+        item.hospital?.name || 'N/A',
         formattedDate,
         item.appointmentTime || 'N/A',
         item.progressStatus || 'Pending',
-        item.activeStatus ? 'Yes' : 'No',
+        item.activeStatus === 'Accepted' ? 'Yes' : 'No',
         item.feedbackStatus ? 'Yes' : 'No',
       ];
 
@@ -936,9 +950,10 @@ export const generateAppointmentReport = async (req, res) => {
 
 export const generateSystemAdminReport = async (req, res) => {
   try {
-    const managers = await SystemManager.find({})
-      .select('firstName lastName email phoneNumber nic address dob role activeStatus')
-      .sort({ createdAt: -1 });
+    const managers = await SystemManager.findAll({
+      attributes: ['firstName', 'lastName', 'email', 'phoneNumber', 'nic', 'address', 'dob', 'role', 'activeStatus'],
+      order: [['createdAt', 'DESC']],
+    });
 
     if (!managers.length) {
       return res.status(404).json({ success: false, message: 'No system managers found' });
@@ -1012,7 +1027,7 @@ export const generateSystemAdminReport = async (req, res) => {
         item.phoneNumber || 'N/A',
         item.nic || 'N/A',
         item.address || 'N/A',
-        item.dob ? item.dob.toDateString() : 'N/A',
+        item.dob ? new Date(item.dob).toDateString() : 'N/A',
         item.role || 'N/A',
         item.activeStatus ? 'Yes' : 'No',
       ];
@@ -1046,9 +1061,11 @@ export const generateDonorReport = async (req, res) => {
     const { bloodType } = req.query; // Get bloodType from query parameters
     const query = bloodType ? { bloodType } : {};
     
-    const donors = await Donor.find(query)
-      .select('firstName lastName email phoneNumber bloodType city dob activeStatus createdAt')
-      .sort({ createdAt: -1 });
+    const donors = await Donor.findAll({
+      where: query,
+      attributes: ['firstName', 'lastName', 'email', 'phoneNumber', 'bloodType', 'city', 'dob', 'activeStatus', 'createdAt'],
+      order: [['createdAt', 'DESC']],
+    });
 
     if (!donors.length) {
       return res.status(404).json({ success: false, message: 'No donors found' });
@@ -1130,7 +1147,7 @@ export const generateDonorReport = async (req, res) => {
         item.phoneNumber || 'N/A',
         item.bloodType || 'N/A',
         item.city || 'N/A',
-        item.dob ? item.dob.toDateString() : 'N/A',
+        item.dob ? new Date(item.dob).toDateString() : 'N/A',
         item.activeStatus ? 'Yes' : 'No',
       ];
 
@@ -1160,9 +1177,10 @@ export const generateDonorReport = async (req, res) => {
 
 export const generateHospitalReport = async (req, res) => {
   try {
-    const hospitals = await Hospital.find({})
-      .select('name email phoneNumber city address startTime endTime activeStatus createdAt')
-      .sort({ createdAt: -1 });
+    const hospitals = await Hospital.findAll({
+      attributes: ['name', 'email', 'phoneNumber', 'city', 'address', 'startTime', 'endTime', 'activeStatus', 'createdAt'],
+      order: [['createdAt', 'DESC']],
+    });
 
     if (!hospitals.length) {
       return res.status(404).json({ success: false, message: 'No hospitals found' });
@@ -1282,9 +1300,11 @@ export const generateEmergencyBRReport = async (req, res) => {
     if (criticalLevel) query.criticalLevel = criticalLevel;
     if (status) query.acceptStatus = status;
 
-    const requests = await EmergencyBR.find(query)
-      .select('name patientBlood criticalLevel hospitalName acceptStatus')
-      .sort({ createdAt: -1 });
+    const requests = await EmergencyBR.findAll({
+      where: query,
+      attributes: ['name', 'patientBlood', 'criticalLevel', 'hospitalName', 'acceptStatus'],
+      order: [['createdAt', 'DESC']],
+    });
 
     if (!requests.length) {
       return res.status(404).json({ success: false, message: 'No emergency blood requests found' });
@@ -1407,14 +1427,12 @@ export const generateHospitalAdminReport = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Hospital ID is required' });
     }
 
-    if (!userId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({ success: false, message: 'Invalid hospital ID format' });
-    }
-
     // Fetch hospital admins
-    const admins = await HospitalAdmin.find({ hospitalId:userId })
-      .select('firstName lastName email phoneNumber nic dob activeStatus')
-      .sort({ createdAt: -1 });
+    const admins = await HospitalAdmin.findAll({
+      where: { hospitalId: userId },
+      attributes: ['firstName', 'lastName', 'email', 'phoneNumber', 'nic', 'dob', 'activeStatus'],
+      order: [['createdAt', 'DESC']],
+    });
 
     if (!admins.length) {
       return res.status(404).json({ success: false, message: 'No hospital admins found for this hospital' });
@@ -1450,7 +1468,7 @@ export const generateHospitalAdminReport = async (req, res) => {
         .fontSize(11)
         .fillColor('#555')
         .text(`Generated on: ${new Date().toDateString()}`, { align: 'right' });
-369    };
+    };
 
     const generateTableHeader = (y) => {
       const headers = ['#', 'Name', 'Email', 'Phone', 'NIC', 'DOB', 'Active'];

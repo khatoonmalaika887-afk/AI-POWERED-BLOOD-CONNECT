@@ -8,7 +8,7 @@ import { toast } from "react-toastify";
 import { useGenerateReport } from "../hooks/useGenerateReport";
 
 export default function HospitalDashboard() {
-  const { hospitals, loading, error, fetchHospitals, deleteHospital, updateHospital, createHospital } = useHospital();
+  const { hospitals, loading, error, fetchHospitals, deleteHospital, updateHospital, createHospital, updateHospitalApproval } = useHospital();
   const { createHospitalAdmin } = useHospitalAdmin();
   const [editHospital, setEditHospital] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -212,7 +212,7 @@ export default function HospitalDashboard() {
 
   const handleEdit = (hospital) => {
     setEditHospital({
-      _id: hospital._id,
+      id: hospital.id,
       name: hospital.name,
       city: hospital.city,
       phoneNumber: hospital.phoneNumber,
@@ -236,7 +236,7 @@ export default function HospitalDashboard() {
 
     setActionLoading(true);
     try {
-      await updateHospital(editHospital._id, {
+      await updateHospital(editHospital.id, {
         city: editHospital.city,
         phoneNumber: editHospital.phoneNumber,
         address: editHospital.address,
@@ -478,13 +478,14 @@ export default function HospitalDashboard() {
               <Table.HeadCell className="px-6 py-4 font-semibold">Start Time</Table.HeadCell>
               <Table.HeadCell className="px-6 py-4 font-semibold">End Time</Table.HeadCell>
               <Table.HeadCell className="px-6 py-4 font-semibold">Status</Table.HeadCell>
+              <Table.HeadCell className="px-6 py-4 font-semibold">Approval</Table.HeadCell>
               <Table.HeadCell className="px-6 py-4 font-semibold">Actions</Table.HeadCell>
             </Table.Head>
             <Table.Body className="divide-y divide-gray-200">
               {filteredHospitals.length > 0 ? (
                 filteredHospitals.map((hospital) => (
-                  <Table.Row 
-                    key={hospital._id} 
+                  <Table.Row
+                    key={hospital.id}
                     className="bg-white hover:bg-red-50 transition-colors duration-150"
                   >
                     <Table.Cell className="px-6 py-4 text-gray-900 font-medium">{hospital.name}</Table.Cell>
@@ -503,45 +504,81 @@ export default function HospitalDashboard() {
                       </span>
                     </Table.Cell>
                     <Table.Cell className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        hospital.approvalStatus === 'Approved'
+                          ? "bg-green-100 text-green-700"
+                          : hospital.approvalStatus === 'Rejected'
+                          ? "bg-gray-200 text-gray-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}>
+                        {hospital.approvalStatus || "Approved"}
+                      </span>
+                    </Table.Cell>
+                    <Table.Cell className="px-6 py-4">
                       <div className="flex space-x-2">
-                        {hospital.activeStatus ? (
-                          <Button 
-                            size="xs" 
-                            gradientDuoTone="cyanToBlue"
-                            onClick={() => handleEdit(hospital)} 
-                            disabled={actionLoading}
-                            className="rounded-lg"
-                          >
-                            Edit
-                          </Button>
+                        {hospital.approvalStatus === 'Pending' ? (
+                          <>
+                            <Button
+                              size="xs"
+                              color="success"
+                              onClick={() => updateHospitalApproval(hospital.id, 'Approved')}
+                              disabled={actionLoading}
+                              className="rounded-lg bg-green-600 hover:bg-green-700"
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="xs"
+                              color="failure"
+                              onClick={() => updateHospitalApproval(hospital.id, 'Rejected')}
+                              disabled={actionLoading}
+                              className="rounded-lg bg-red-600 hover:bg-red-700"
+                            >
+                              Reject
+                            </Button>
+                          </>
                         ) : (
-                          <Button 
-                            size="xs" 
-                            color="failure"
-                            onClick={() => handleDelete(hospital._id)} 
-                            disabled={actionLoading}
-                            className="rounded-lg bg-red-600 hover:bg-red-700"
-                          >
-                            Delete
-                          </Button>
+                          <>
+                            {hospital.activeStatus ? (
+                              <Button
+                                size="xs"
+                                gradientDuoTone="cyanToBlue"
+                                onClick={() => handleEdit(hospital)}
+                                disabled={actionLoading}
+                                className="rounded-lg"
+                              >
+                                Edit
+                              </Button>
+                            ) : (
+                              <Button
+                                size="xs"
+                                color="failure"
+                                onClick={() => handleDelete(hospital.id)}
+                                disabled={actionLoading}
+                                className="rounded-lg bg-red-600 hover:bg-red-700"
+                              >
+                                Delete
+                              </Button>
+                            )}
+                            <Button
+                              size="xs"
+                              color={hospital.activeStatus ? "failure" : "success"}
+                              onClick={() => handleActivateDeactivate(hospital.id, hospital.activeStatus)}
+                              disabled={actionLoading}
+                              className={`rounded-lg ${hospital.activeStatus ? "bg-red-300 hover:bg-red-400" : "bg-green-600 hover:bg-green-700"}`}
+                            >
+                              {hospital.activeStatus ? "Deactivate" : "Activate"}
+                            </Button>
+                          </>
                         )}
-                        <Button
-                          size="xs"
-                          color={hospital.activeStatus ? "failure" : "success"}
-                          onClick={() => handleActivateDeactivate(hospital._id, hospital.activeStatus)}
-                          disabled={actionLoading}
-                          className={`rounded-lg ${hospital.activeStatus ? "bg-red-300 hover:bg-red-400" : "bg-green-600 hover:bg-green-700"}`}
-                        >
-                          {hospital.activeStatus ? "Deactivate" : "Activate"}
-                        </Button>
                       </div>
                     </Table.Cell>
                   </Table.Row>
                 ))
               ) : (
                 <Table.Row>
-                  <Table.Cell 
-                    colSpan="10" 
+                  <Table.Cell
+                    colSpan="11"
                     className="text-center py-6 text-gray-500 font-medium"
                   >
                     No hospitals found
@@ -842,7 +879,7 @@ export default function HospitalDashboard() {
                   >
                     <option value="" disabled>Select a hospital</option>
                     {hospitals && hospitals.map((hospital) => (
-                      <option key={hospital._id} value={hospital._id}>{hospital.name}</option>
+                      <option key={hospital.id} value={hospital.id}>{hospital.name}</option>
                     ))}
                   </Select>
                   {addAdminErrors.hospitalId && (

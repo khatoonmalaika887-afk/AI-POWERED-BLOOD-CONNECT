@@ -1,9 +1,10 @@
+import { Op } from "sequelize";
 import SystemManager from "../models/SystemManager.model.js";
 
 // Get all system managers
 export const getSystemManagers = async (req, res) => {
     try {
-        const managers = await SystemManager.find();
+        const managers = await SystemManager.findAll({ attributes: { exclude: ['password'] } });
         res.json(managers);
     } catch (error) {
         res.status(500).json({ message: "Error fetching system managers" });
@@ -13,7 +14,7 @@ export const getSystemManagers = async (req, res) => {
 // Get a single system manager by ID
 export const getSystemManagerById = async (req, res) => {
     try {
-        const manager = await SystemManager.findById(req.params.id);
+        const manager = await SystemManager.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
         if (!manager) return res.status(404).json({ message: "System Manager not found" });
         res.json(manager);
     } catch (error) {
@@ -24,34 +25,34 @@ export const getSystemManagerById = async (req, res) => {
 // Create a new system manager
 export const createSystemManager = async (req, res) => {
     try {
-        const { 
-            firstName, 
-            lastName, 
-            phoneNumber, 
-            email, 
-            password, 
-            nic, 
-            address, 
-            dob, 
-            role, 
-            activeStatus 
+        const {
+            firstName,
+            lastName,
+            phoneNumber,
+            email,
+            password,
+            nic,
+            address,
+            dob,
+            role,
+            activeStatus
         } = req.body;
 
         // Check for required fields
         const requiredFields = { firstName, lastName, phoneNumber, email, password, nic, address, dob, role };
         const missingFields = Object.keys(requiredFields).filter(key => !requiredFields[key]);
         if (missingFields.length > 0) {
-            return res.status(400).json({ 
-                message: `Missing required fields: ${missingFields.join(', ')}` 
+            return res.status(400).json({
+                message: `Missing required fields: ${missingFields.join(', ')}`
             });
         }
 
         // Check for existing email, phoneNumber, or nic
         const existingManager = await SystemManager.findOne({
-            $or: [{ email }, { phoneNumber }, { nic }]
+            where: { [Op.or]: [{ email }, { phoneNumber }, { nic }] }
         });
         if (existingManager) {
-            const field = existingManager.email === email ? 'Email' : 
+            const field = existingManager.email === email ? 'Email' :
                          existingManager.phoneNumber === phoneNumber ? 'Phone Number' : 'NIC';
             return res.status(400).json({ message: `${field} already in use` });
         }
@@ -63,7 +64,7 @@ export const createSystemManager = async (req, res) => {
         // const salt = await bcrypt.genSalt(10);
         // const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newManager = new SystemManager({
+        const newManager = await SystemManager.create({
             firstName,
             lastName,
             phoneNumber,
@@ -77,18 +78,20 @@ export const createSystemManager = async (req, res) => {
             activeStatus: activeStatus !== undefined ? activeStatus : true
         });
 
-        await newManager.save();
-
-        const responseManager = newManager.toObject();
+        const responseManager = newManager.toJSON();
         delete responseManager.password;
 
         res.status(201).json(responseManager);
     } catch (error) {
-        if (error.name === 'ValidationError') {
-            return res.status(400).json({ 
-                message: "Validation failed", 
-                errors: Object.values(error.errors).map(err => err.message) 
+        if (error.name === 'SequelizeValidationError') {
+            return res.status(400).json({
+                message: "Validation failed",
+                errors: error.errors.map(err => err.message)
             });
+        }
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            const field = Object.keys(error.fields)[0];
+            return res.status(400).json({ message: `${field} already exists` });
         }
         res.status(500).json({ message: "Error creating system manager" });
     }
@@ -102,10 +105,11 @@ export const updateSystemManager = async (req, res) => {
             updates.image = req.file.path;
         }
 
-        const updatedManager = await SystemManager.findByIdAndUpdate(req.params.id, updates, { new: true });
+        const [affectedCount] = await SystemManager.update(updates, { where: { id: req.params.id } });
 
-        if (!updatedManager) return res.status(404).json({ message: 'System Manager not found' });
+        if (affectedCount === 0) return res.status(404).json({ message: 'System Manager not found' });
 
+        const updatedManager = await SystemManager.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
         res.status(200).json(updatedManager);
     } catch (error) {
         res.status(500).json({ message: 'Error updating system manager' });
@@ -115,8 +119,8 @@ export const updateSystemManager = async (req, res) => {
 // Delete a system manager
 export const deleteSystemManager = async (req, res) => {
     try {
-        const deletedManager = await SystemManager.findByIdAndDelete(req.params.id);
-        if (!deletedManager) return res.status(404).json({ message: "System Manager not found" });
+        const deletedCount = await SystemManager.destroy({ where: { id: req.params.id } });
+        if (deletedCount === 0) return res.status(404).json({ message: "System Manager not found" });
 
         res.json({ message: "System Manager deleted successfully" });
     } catch (error) {
@@ -129,18 +133,15 @@ export const activateDeactivateSystemManager = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const manager = await SystemManager.findById(id);
+        const manager = await SystemManager.findByPk(id);
         if (!manager) {
             return res.status(404).json({ message: "System Manager not found" });
         }
 
         const newStatus = !manager.activeStatus;
-        const updatedManager = await SystemManager.findByIdAndUpdate(
-            id,
-            { $set: { activeStatus: newStatus } },
-            { new: true }
-        );
+        await SystemManager.update({ activeStatus: newStatus }, { where: { id } });
 
+        const updatedManager = await SystemManager.findByPk(id, { attributes: { exclude: ['password'] } });
         res.status(200).json({
             message: `System Manager ${newStatus ? 'activated' : 'deactivated'} successfully`,
             manager: updatedManager,

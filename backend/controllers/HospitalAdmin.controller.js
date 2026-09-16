@@ -1,9 +1,10 @@
+import { Op } from 'sequelize';
 import HospitalAdmin from '../models/HospitalAdmin.model.js';
 
 // Get all hospital admins
 export const getHospitalAdmins = async (req, res) => {
     try {
-        const admins = await HospitalAdmin.find();
+        const admins = await HospitalAdmin.findAll({ attributes: { exclude: ['password'] } });
         res.json(admins);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching hospital admins' });
@@ -13,7 +14,7 @@ export const getHospitalAdmins = async (req, res) => {
 // Get all hospital admins by hospital ID
 export const getHospitalAdminsByHospitalId = async (req, res) => {
     try {
-        const admins = await HospitalAdmin.find({ hospitalId: req.params.id });
+        const admins = await HospitalAdmin.findAll({ where: { hospitalId: req.params.id }, attributes: { exclude: ['password'] } });
         res.json(admins);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching hospital admins' });
@@ -23,7 +24,7 @@ export const getHospitalAdminsByHospitalId = async (req, res) => {
 // Get a single hospital admin by ID
 export const getHospitalAdminById = async (req, res) => {
     try {
-        const admin = await HospitalAdmin.findById(req.params.id);
+        const admin = await HospitalAdmin.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
         if (!admin) return res.status(404).json({ message: 'Hospital Admin not found' });
         res.json(admin);
     } catch (error) {
@@ -38,7 +39,7 @@ export const createHospitalAdmin = async (req, res) => {
 
         // Check if email or phone number already exists
         const existingAdmin = await HospitalAdmin.findOne({
-            $or: [{ email }, { phoneNumber }]
+            where: { [Op.or]: [{ email }, { phoneNumber }] }
         });
 
         if (existingAdmin) {
@@ -48,7 +49,7 @@ export const createHospitalAdmin = async (req, res) => {
         // Set image URL if an image is uploaded
         const image = req.file ? req.file.path : null;
 
-        const newAdmin = new HospitalAdmin({
+        const newAdmin = await HospitalAdmin.create({
             email,
             firstName,
             lastName,
@@ -62,8 +63,9 @@ export const createHospitalAdmin = async (req, res) => {
             activeStatus: true // Default to active
         });
 
-        await newAdmin.save();
-        res.status(201).json(newAdmin);
+        const responseAdmin = newAdmin.toJSON();
+        delete responseAdmin.password;
+        res.status(201).json(responseAdmin);
     } catch (error) {
         res.status(400).json({ message: 'Error creating hospital admin' });
     }
@@ -77,10 +79,11 @@ export const updateHospitalAdmin = async (req, res) => {
             updates.image = req.file.path;
         }
 
-        const updatedAdmin = await HospitalAdmin.findByIdAndUpdate(req.params.id, updates, { new: true });
+        const [affectedCount] = await HospitalAdmin.update(updates, { where: { id: req.params.id } });
 
-        if (!updatedAdmin) return res.status(404).json({ message: 'Hospital Admin not found' });
+        if (affectedCount === 0) return res.status(404).json({ message: 'Hospital Admin not found' });
 
+        const updatedAdmin = await HospitalAdmin.findByPk(req.params.id, { attributes: { exclude: ['password'] } });
         res.status(200).json(updatedAdmin);
     } catch (error) {
         res.status(500).json({ message: 'Error updating hospital admin' });
@@ -90,8 +93,8 @@ export const updateHospitalAdmin = async (req, res) => {
 // Delete a hospital admin
 export const deleteHospitalAdmin = async (req, res) => {
     try {
-        const deletedAdmin = await HospitalAdmin.findByIdAndDelete(req.params.id);
-        if (!deletedAdmin) return res.status(404).json({ message: 'Hospital Admin not found' });
+        const deletedCount = await HospitalAdmin.destroy({ where: { id: req.params.id } });
+        if (deletedCount === 0) return res.status(404).json({ message: 'Hospital Admin not found' });
 
         res.json({ message: 'Hospital Admin deleted successfully' });
     } catch (error) {
@@ -104,18 +107,15 @@ export const activateDeactivateHospitalAdmin = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const admin = await HospitalAdmin.findById(id);
+        const admin = await HospitalAdmin.findByPk(id);
         if (!admin) {
             return res.status(404).json({ message: 'Hospital Admin not found' });
         }
 
         const newStatus = !admin.activeStatus;
-        const updatedAdmin = await HospitalAdmin.findByIdAndUpdate(
-            id,
-            { $set: { activeStatus: newStatus } },
-            { new: true }
-        );
+        await HospitalAdmin.update({ activeStatus: newStatus }, { where: { id } });
 
+        const updatedAdmin = await HospitalAdmin.findByPk(id, { attributes: { exclude: ['password'] } });
         res.status(200).json({
             message: `Hospital Admin ${newStatus ? 'activated' : 'deactivated'} successfully`,
             admin: updatedAdmin,

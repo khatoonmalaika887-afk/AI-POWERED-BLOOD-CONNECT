@@ -2,6 +2,7 @@ import express from "express";
 import {
     getBloodRequests,
     getBloodRequestById,
+    createBloodRequest,
     updateBloodRequestStatus,
     deleteBloodRequest,
     getBloodRequestsByHospital,
@@ -17,6 +18,7 @@ import {
 const router = express.Router();
 
 router.get("/", getBloodRequests);
+router.post("/", createBloodRequest);
 router.get("/:id", getBloodRequestById);
 router.patch("/:id/status", updateBloodRequestStatus);
 router.delete("/:id", deleteBloodRequest);

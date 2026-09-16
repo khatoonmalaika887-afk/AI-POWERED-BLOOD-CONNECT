@@ -55,14 +55,15 @@ export const createPayment = async (req, res) => {
 export const updatePaymentStatus = async (req, res) => {
     try {
         const { status, transactionId } = req.body;
-        const updatedPayment = await Payment.update(
+        const [affectedCount] = await Payment.update(
             { status, transactionId },
-            { where: { id: req.params.id }, returning: true }
+            { where: { id: req.params.id } }
         );
 
-        if (updatedPayment[0] === 0) return res.status(404).json({ message: "Payment not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Payment not found" });
 
-        res.status(200).json(updatedPayment[1][0]);
+        const updatedPayment = await Payment.findByPk(req.params.id);
+        res.status(200).json(updatedPayment);
     } catch (error) {
         res.status(500).json({ message: "Error updating payment status" });
     }

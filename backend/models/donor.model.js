@@ -2,7 +2,7 @@ import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/database.js';
 import validator from "validator";
 import moment from "moment";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 const Donor = sequelize.define('Donor', {
     id: {

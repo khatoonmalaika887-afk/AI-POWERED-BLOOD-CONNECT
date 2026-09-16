@@ -38,10 +38,10 @@ export const useDonor = () => {
         try {
             const response = await axios.post("/api/donor", donorData);
             setDonors((prev) => [...prev, response.data]);
-            toast.success("Donor created successfully!");
+            return response.data;
         } catch (err) {
             console.error("Error creating donor:", err);
-            toast.error(err?.response?.data?.message || "Error creating donor");
+            throw err;
         }
     };
 

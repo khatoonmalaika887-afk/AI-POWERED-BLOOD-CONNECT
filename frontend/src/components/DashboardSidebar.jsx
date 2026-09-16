@@ -6,12 +6,14 @@ import {
   HiOfficeBuilding, HiClock, HiClipboardCheck, HiExclamation
 } from 'react-icons/hi';
 import { useAuthContext } from '../hooks/useAuthContext';
+import { useLogout } from '../hooks/useLogout';
 import Logo from '../assets/logo.svg';
 import { Link } from 'react-router-dom';
 
 // Export both as default and named export
 const DashboardSidebar = () => {
   const { user } = useAuthContext();
+  const { logout } = useLogout();
   const Donor = user?.role === 'Donor';
   const Hospital = user?.role === 'Hospital';
   const Manager = user?.role === 'Manager';
@@ -128,10 +130,13 @@ const DashboardSidebar = () => {
           </div>
           
           <div className="p-4 border-t border-gray-700">
-            <Link to="/" className="flex items-center text-gray-400 hover:text-white">
+            <button
+              onClick={logout}
+              className="flex items-center w-full text-left text-gray-400 hover:text-white"
+            >
               <HiHome className="w-5 h-5 mr-2" />
               <span>Sign Out</span>
-            </Link>
+            </button>
           </div>
         </div>
       </div>

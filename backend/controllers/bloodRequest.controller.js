@@ -8,9 +8,12 @@ import sendNotification from "../utils/notification.js";
 // Get all blood requests
 export const getBloodRequests = async (req, res) => {
     try {
-        const requests = await BloodRequest.find()
-            .populate('receiverId', 'firstName lastName phoneNumber')
-            .populate('hospitalId', 'name phoneNumber');
+        const requests = await BloodRequest.findAll({
+            include: [
+                { model: Receiver, as: 'receiver', attributes: ['firstName', 'lastName', 'phoneNumber'] },
+                { model: Hospital, as: 'hospital', attributes: ['name', 'phoneNumber'] },
+            ],
+        });
         res.json(requests);
     } catch (error) {
         res.status(500).json({ message: "Error fetching blood requests" });
@@ -20,9 +23,12 @@ export const getBloodRequests = async (req, res) => {
 // Get blood request by ID
 export const getBloodRequestById = async (req, res) => {
     try {
-        const request = await BloodRequest.findById(req.params.id)
-            .populate('receiverId', 'firstName lastName phoneNumber')
-            .populate('hospitalId', 'name phoneNumber');
+        const request = await BloodRequest.findByPk(req.params.id, {
+            include: [
+                { model: Receiver, as: 'receiver', attributes: ['firstName', 'lastName', 'phoneNumber'] },
+                { model: Hospital, as: 'hospital', attributes: ['name', 'phoneNumber'] },
+            ],
+        });
         if (!request) return res.status(404).json({ message: "Blood request not found" });
         res.json(request);
     } catch (error) {
@@ -33,28 +39,26 @@ export const getBloodRequestById = async (req, res) => {
 // Create a new blood request (Receiver posts blood request)
 export const createBloodRequest = async (req, res) => {
     try {
-        const { receiverId, bloodType, units, urgency, location, hospitalId, message } = req.body;
-        
-        if (!receiverId || !bloodType || !units || !location) {
+        const { receiverId, bloodType, unitsRequired, urgency, city, hospitalId, notes } = req.body;
+
+        if (!receiverId || !bloodType || !unitsRequired || !city) {
             return res.status(400).json({ message: "Missing required fields" });
         }
-        
-        const newRequest = new BloodRequest({
+
+        const newRequest = await BloodRequest.create({
             receiverId,
             bloodType,
-            units,
+            unitsRequired,
             urgency: urgency || "Normal",
-            location,
+            city,
             hospitalId,
-            message,
+            notes,
             status: "Pending"
         });
-        
-        await newRequest.save();
-        
+
         // System Notification Triggered
         await triggerSystemNotification(newRequest);
-        
+
         res.status(201).json(newRequest);
     } catch (error) {
         res.status(500).json({ message: "Error creating blood request" });
@@ -65,7 +69,7 @@ export const createBloodRequest = async (req, res) => {
 const triggerSystemNotification = async (request) => {
     try {
         // Determine if this is an emergency alert or stock request
-        if (request.urgency === "Emergency") {
+        if (request.urgency === "Urgent") {
             // Emergency Alert - Notify nearby donors
             await notifyNearbyDonors(request);
         } else {
@@ -80,31 +84,26 @@ const triggerSystemNotification = async (request) => {
 // Notify nearby donors for emergency requests
 export const notifyNearbyDonors = async (request) => {
     try {
-        // Find donors with matching blood type and available status
-        const compatibleDonors = await Donor.find({
-            bloodType: request.bloodType,
-            isAvailable: true,
-            city: request.location.city // Assuming location has city property
+        // Find donors with matching blood type and available status in the same city
+        const compatibleDonors = await Donor.findAll({
+            where: {
+                bloodType: request.bloodType,
+                activeStatus: true,
+                city: request.city,
+            },
         });
 
         // Send emergency alerts to compatible donors
         for (const donor of compatibleDonors) {
             await sendNotification({
-                userId: donor._id,
+                userId: donor.id,
                 userType: 'Donor',
                 subject: 'EMERGENCY: Blood Donation Request',
-                message: `URGENT: ${request.bloodType} blood needed immediately at ${request.location.address}. Please respond if you can help.`,
+                message: `URGENT: ${request.bloodType} blood needed immediately in ${request.city}. Please respond if you can help.`,
                 channels: ['email', 'sms'], // Use both channels for emergency
                 attachments: []
             });
         }
-
-        // Update request to show emergency alert was sent
-        await BloodRequest.findByIdAndUpdate(request._id, {
-            notificationSent: true,
-            notificationType: 'Emergency Alert'
-        });
-
     } catch (error) {
         console.error("Error notifying nearby donors:", error);
     }
@@ -118,7 +117,7 @@ export const notifyHospital = async (request) => {
             return;
         }
 
-        const hospital = await Hospital.findById(request.hospitalId);
+        const hospital = await Hospital.findByPk(request.hospitalId);
         if (!hospital) {
             console.error("Hospital not found");
             return;
@@ -126,20 +125,13 @@ export const notifyHospital = async (request) => {
 
         // Send notification to hospital
         await sendNotification({
-            userId: hospital._id,
+            userId: hospital.id,
             userType: 'Hospital',
             subject: 'Blood Stock Request',
-            message: `A request for ${request.units} units of ${request.bloodType} blood has been received. Please check your dashboard.`,
+            message: `A request for ${request.unitsRequired} units of ${request.bloodType} blood has been received. Please check your dashboard.`,
             channels: ['email'],
             attachments: []
         });
-
-        // Update request to show stock request was sent
-        await BloodRequest.findByIdAndUpdate(request._id, {
-            notificationSent: true,
-            notificationType: 'Stock Request'
-        });
-
     } catch (error) {
         console.error("Error notifying hospital:", error);
     }
@@ -148,17 +140,18 @@ export const notifyHospital = async (request) => {
 // Update blood request status (approve/decline)
 export const updateBloodRequestStatus = async (req, res) => {
     try {
-        const { status, hospitalId, donorId, notes } = req.body;
-        const updatedRequest = await BloodRequest.findByIdAndUpdate(
-            req.params.id,
-            { status, hospitalId, donorId, notes },
-            { new: true }
+        const { status, hospitalId, notes } = req.body;
+        const [affectedCount] = await BloodRequest.update(
+            { status, hospitalId, notes },
+            { where: { id: req.params.id } }
         );
 
-        if (!updatedRequest) return res.status(404).json({ message: "Blood request not found" });
+        if (affectedCount === 0) return res.status(404).json({ message: "Blood request not found" });
+
+        const updatedRequest = await BloodRequest.findByPk(req.params.id);
 
         // Send notification to receiver
-        const receiver = await Receiver.findById(updatedRequest.receiverId);
+        const receiver = await Receiver.findByPk(updatedRequest.receiverId);
         if (receiver) {
             const message = `Your blood request for ${updatedRequest.bloodType} has been ${status.toLowerCase()}.`;
             await sendNotification({
@@ -180,8 +173,8 @@ export const updateBloodRequestStatus = async (req, res) => {
 // Delete blood request
 export const deleteBloodRequest = async (req, res) => {
     try {
-        const deletedRequest = await BloodRequest.findByIdAndDelete(req.params.id);
-        if (!deletedRequest) return res.status(404).json({ message: "Blood request not found" });
+        const deletedCount = await BloodRequest.destroy({ where: { id: req.params.id } });
+        if (deletedCount === 0) return res.status(404).json({ message: "Blood request not found" });
 
         res.json({ message: "Blood request deleted successfully" });
     } catch (error) {
@@ -189,35 +182,47 @@ export const deleteBloodRequest = async (req, res) => {
     }
 };
 
+// Get blood requests by hospital
+export const getBloodRequestsByHospital = async (req, res) => {
+    try {
+        const hospitalId = req.params.id;
+        const requests = await BloodRequest.findAll({
+            where: { hospitalId },
+            include: [{ model: Receiver, as: 'receiver', attributes: ['firstName', 'lastName', 'phoneNumber'] }],
+        });
+        res.json(requests);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching blood requests by hospital" });
+    }
+};
+
 // Donor accepts blood request and shares location
+// NOTE: BloodRequest has no donorId/donorLocation/acceptedAt columns yet - this
+// endpoint needs a schema update before it can actually persist donor acceptance.
 export const donorAcceptRequest = async (req, res) => {
     try {
         const { donorId, location } = req.body;
-        
+
         if (!donorId || !location) {
             return res.status(400).json({ message: "Donor ID and location are required" });
         }
-        
-        const request = await BloodRequest.findByIdAndUpdate(
-            req.params.id,
-            { 
-                donorId,
-                donorLocation: location,
-                status: "Donor Accepted",
-                acceptedAt: new Date()
-            },
-            { new: true }
+
+        const [affectedCount] = await BloodRequest.update(
+            { status: "Donor Accepted" },
+            { where: { id: req.params.id } }
         );
-        
-        if (!request) {
+
+        if (affectedCount === 0) {
             return res.status(404).json({ message: "Blood request not found" });
         }
-        
+
+        const request = await BloodRequest.findByPk(req.params.id);
+
         // Notify receiver that a donor has accepted
-        const receiver = await Receiver.findById(request.receiverId);
+        const receiver = await Receiver.findByPk(request.receiverId);
         if (receiver) {
             await sendNotification({
-                userId: receiver._id,
+                userId: receiver.id,
                 userType: 'Receiver',
                 subject: 'Donor Found for Your Blood Request',
                 message: `A donor has accepted your request for ${request.bloodType} blood. Connection arrangements will be made soon.`,
@@ -225,7 +230,7 @@ export const donorAcceptRequest = async (req, res) => {
                 attachments: []
             });
         }
-        
+
         res.status(200).json(request);
     } catch (error) {
         res.status(500).json({ message: "Error accepting blood request" });
@@ -235,37 +240,35 @@ export const donorAcceptRequest = async (req, res) => {
 // Hospital confirms blood availability or shortage
 export const hospitalConfirmAvailability = async (req, res) => {
     try {
-        const { hospitalId, isAvailable, notes } = req.body;
-        
+        const { hospitalId, isAvailable } = req.body;
+
         if (!hospitalId) {
             return res.status(400).json({ message: "Hospital ID is required" });
         }
-        
-        const request = await BloodRequest.findByIdAndUpdate(
-            req.params.id,
-            { 
+
+        const [affectedCount] = await BloodRequest.update(
+            {
                 hospitalId,
-                stockAvailable: isAvailable,
-                hospitalNotes: notes,
-                status: isAvailable ? "Stock Available" : "Stock Shortage",
-                hospitalRespondedAt: new Date()
+                status: isAvailable ? "Approved" : "Declined",
             },
-            { new: true }
+            { where: { id: req.params.id } }
         );
-        
-        if (!request) {
+
+        if (affectedCount === 0) {
             return res.status(404).json({ message: "Blood request not found" });
         }
-        
+
+        const request = await BloodRequest.findByPk(req.params.id);
+
         // Notify receiver about hospital response
-        const receiver = await Receiver.findById(request.receiverId);
+        const receiver = await Receiver.findByPk(request.receiverId);
         if (receiver) {
-            const message = isAvailable 
+            const message = isAvailable
                 ? `${request.bloodType} blood is available at the hospital. Please proceed with arrangements.`
                 : `There is a shortage of ${request.bloodType} blood at the hospital. We're looking for alternative sources.`;
-                
+
             await sendNotification({
-                userId: receiver._id,
+                userId: receiver.id,
                 userType: 'Receiver',
                 subject: 'Hospital Response to Blood Request',
                 message,
@@ -273,64 +276,40 @@ export const hospitalConfirmAvailability = async (req, res) => {
                 attachments: []
             });
         }
-        
+
         res.status(200).json(request);
     } catch (error) {
         res.status(500).json({ message: "Error confirming blood availability" });
     }
 };
 
-// Get blood requests by hospital
-export const getBloodRequestsByHospital = async (req, res) => {
-    try {
-        const hospitalId = req.params.id;
-        const requests = await BloodRequest.find({ hospitalId })
-            .populate('receiverId', 'firstName lastName phoneNumber');
-        res.json(requests);
-    } catch (error) {
-        res.status(500).json({ message: "Error fetching blood requests by hospital" });
-    }
-};
-
 // Arrange connection between donor and receiver/hospital
+// NOTE: BloodRequest has no arrangementDetails/meetingTime/meetingLocation/donorId
+// columns yet - this endpoint needs a schema update before it's fully functional.
 export const arrangeConnection = async (req, res) => {
     try {
-        const { arrangementDetails, meetingTime, meetingLocation, notes } = req.body;
-        
-        const request = await BloodRequest.findByIdAndUpdate(
-            req.params.id,
-            { 
-                arrangementDetails,
-                meetingTime,
-                meetingLocation,
-                arrangementNotes: notes,
-                status: "Connection Arranged",
-                arrangedAt: new Date()
-            },
-            { new: true }
-        ).populate('donorId').populate('receiverId').populate('hospitalId');
-        
-        if (!request) {
+        const { meetingTime, meetingLocation } = req.body;
+
+        const [affectedCount] = await BloodRequest.update(
+            { status: "Approved" },
+            { where: { id: req.params.id } }
+        );
+
+        if (affectedCount === 0) {
             return res.status(404).json({ message: "Blood request not found" });
         }
-        
-        // Notify all parties about the arrangement
-        // Notify donor
-        if (request.donorId) {
-            await sendNotification({
-                userId: request.donorId._id,
-                userType: 'Donor',
-                subject: 'Blood Donation Arrangement Confirmed',
-                message: `Your blood donation has been arranged for ${new Date(meetingTime).toLocaleString()} at ${meetingLocation}.`,
-                channels: ['email', 'sms'],
-                attachments: []
-            });
-        }
-        
+
+        const request = await BloodRequest.findByPk(req.params.id, {
+            include: [
+                { model: Receiver, as: 'receiver', attributes: { exclude: ['password'] } },
+                { model: Hospital, as: 'hospital', attributes: { exclude: ['password'] } },
+            ],
+        });
+
         // Notify receiver
-        if (request.receiverId) {
+        if (request.receiver) {
             await sendNotification({
-                userId: request.receiverId._id,
+                userId: request.receiver.id,
                 userType: 'Receiver',
                 subject: 'Blood Donation Arrangement Confirmed',
                 message: `Blood donation has been arranged for ${new Date(meetingTime).toLocaleString()} at ${meetingLocation}.`,
@@ -338,11 +317,11 @@ export const arrangeConnection = async (req, res) => {
                 attachments: []
             });
         }
-        
+
         // Notify hospital
-        if (request.hospitalId) {
+        if (request.hospital) {
             await sendNotification({
-                userId: request.hospitalId._id,
+                userId: request.hospital.id,
                 userType: 'Hospital',
                 subject: 'Blood Donation Arrangement Confirmed',
                 message: `A blood donation has been arranged for ${new Date(meetingTime).toLocaleString()} at ${meetingLocation}.`,
@@ -350,7 +329,7 @@ export const arrangeConnection = async (req, res) => {
                 attachments: []
             });
         }
-        
+
         res.status(200).json(request);
     } catch (error) {
         res.status(500).json({ message: "Error arranging connection" });
@@ -358,77 +337,47 @@ export const arrangeConnection = async (req, res) => {
 };
 
 // Record successful blood donation
+// NOTE: BloodRequest has no donationCompleted/actualUnitsDonated columns yet, and
+// Donor has no donationCount/points/badges columns - donor gamification updates
+// here are no-ops until those columns are added (see gamification.model.js instead,
+// which already tracks points/badges separately).
 export const recordSuccessfulDonation = async (req, res) => {
     try {
-        const { units, donationNotes } = req.body;
-        
-        const request = await BloodRequest.findByIdAndUpdate(
-            req.params.id,
-            { 
-                donationCompleted: true,
-                actualUnitsDonated: units,
-                donationNotes,
-                status: "Donation Completed",
-                completedAt: new Date()
-            },
-            { new: true }
-        ).populate('donorId').populate('hospitalId');
-        
-        if (!request) {
+        const { units } = req.body;
+
+        const [affectedCount] = await BloodRequest.update(
+            { status: "Fulfilled" },
+            { where: { id: req.params.id } }
+        );
+
+        if (affectedCount === 0) {
             return res.status(404).json({ message: "Blood request not found" });
         }
-        
+
+        const request = await BloodRequest.findByPk(req.params.id);
+
         // Update hospital blood stock levels
         if (request.hospitalId) {
-            const inventory = await BloodInventory.findOne({ 
-                hospitalId: request.hospitalId._id,
-                bloodType: request.bloodType
+            const inventory = await BloodInventory.findOne({
+                where: { hospitalId: request.hospitalId, bloodType: request.bloodType },
             });
-            
+
             if (inventory) {
-                inventory.unitsAvailable += parseInt(units);
-                await inventory.save();
+                await inventory.update({ availableStocks: inventory.availableStocks + parseInt(units) });
             } else {
-                // Create new inventory entry if it doesn't exist
                 await BloodInventory.create({
-                    hospitalId: request.hospitalId._id,
+                    hospitalId: request.hospitalId,
                     bloodType: request.bloodType,
-                    unitsAvailable: parseInt(units)
+                    availableStocks: parseInt(units),
+                    expirationDate: (() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 42);
+                        return d;
+                    })(),
                 });
             }
         }
-        
-        // Update donor profile - add points and badges
-        if (request.donorId) {
-            const donor = await Donor.findById(request.donorId._id);
-            if (donor) {
-                // Increment donation count
-                donor.donationCount = (donor.donationCount || 0) + 1;
-                
-                // Add points
-                donor.points = (donor.points || 0) + 50;
-                
-                // Add badge if applicable
-                if (donor.donationCount >= 5 && !donor.badges.includes("Silver Donor")) {
-                    donor.badges.push("Silver Donor");
-                } else if (donor.donationCount >= 10 && !donor.badges.includes("Gold Donor")) {
-                    donor.badges.push("Gold Donor");
-                } else if (donor.donationCount >= 25 && !donor.badges.includes("Platinum Donor")) {
-                    donor.badges.push("Platinum Donor");
-                }
-                
-                // Update last donation date
-                donor.lastDonationDate = new Date();
-                
-                await donor.save();
-            }
-        }
-        
-        // Notify admin for analytics
-        // This would typically update some analytics system
-        // For now, we'll just log it
-        console.log(`Admin notification: Successful donation recorded for request ${request._id}`);
-        
+
         res.status(200).json(request);
     } catch (error) {
         res.status(500).json({ message: "Error recording successful donation" });
@@ -439,13 +388,15 @@ export const recordSuccessfulDonation = async (req, res) => {
 export const checkHospitalStock = async (req, res) => {
     try {
         const { city, bloodType } = req.query;
-        const hospitals = await Hospital.find({ city })
-            .populate('bloodInventory', 'bloodType unitsAvailable');
+        const hospitals = await Hospital.findAll({
+            where: { city },
+            include: [{ model: BloodInventory, as: 'bloodInventory', attributes: ['bloodType', 'availableStocks'] }],
+        });
 
         const stockInfo = hospitals.map(hospital => ({
             hospitalName: hospital.name,
             bloodType,
-            unitsAvailable: hospital.bloodInventory?.find(inv => inv.bloodType === bloodType)?.unitsAvailable || 0,
+            unitsAvailable: hospital.bloodInventory?.find(inv => inv.bloodType === bloodType)?.availableStocks || 0,
         }));
 
         res.json(stockInfo);

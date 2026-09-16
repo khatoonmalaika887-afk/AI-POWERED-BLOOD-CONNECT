@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { HiChatAlt2 } from 'react-icons/hi';
 import Chat from './Chat'; // Import the Chat component
 
 
@@ -13,9 +14,11 @@ function SupportIcon() {
         <div>
             <button
                 onClick={toggleChat}
-                className="fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full z-50"
+                aria-label="Chat with us"
+                title="Chat with us"
+                className="fixed bottom-4 right-4 bg-secondary hover:bg-accent text-white p-4 rounded-full shadow-lg z-50 transition-transform duration-200 hover:scale-110 focus:outline-none focus:ring-4 focus:ring-accent/40"
             >
-                Support
+                <HiChatAlt2 className="w-6 h-6" />
             </button>
             <Chat isOpen={isChatOpen} onClose={toggleChat} />
         </div>

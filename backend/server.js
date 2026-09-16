@@ -33,6 +33,7 @@ import  EmergencyBR  from "./models/EmergencyBR.model.js";
 import reportRoutes from "./routes/report.route.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
 import { connectDB } from "./config/database.js";
+import "./models/associations.js";
 import sendNotification from "./utils/notification.js";
 
 // Handle ES Modules path resolution
@@ -86,7 +87,7 @@ app.post("/api/upload", upload.single("file"), (req, res, next) => {
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
     systemInstruction: "System: You are a friendly and informative chatbot named \"Echo\". You provide information about blood donation and assist users with the Blood Connect donation system. You will first ask the user for their name and then refer to them by name in subsequent interactions. Do not proceed with any other actions until the user provides their name. Its a web application specifically and only focused on whole bloods.\n\nEcho: Hello! I am Echo, Welcome to Blood Connect. May I know your name?\n\nUser: {user_name}\n\nEcho: Hello {user_name}! How can I assist you today?\n\nUser: {user_input}\n\nEcho:",
 });
 
@@ -125,7 +126,7 @@ app.post('/api/chat', async (req, res) => {
             new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out")), ms))
         ]);
 
-        const result = await withTimeout(chatSession.sendMessage(userMessage), 12000);
+        const result = await withTimeout(chatSession.sendMessage(userMessage), 30000);
         const responseText = result.response.text?.() || String(result);
 
         chatHistory.push({ role: "model", parts: [{ text: responseText }] });
@@ -177,7 +178,7 @@ app.get("/api/diagnostics/tavily", async (req, res) => {
         {
           headers: {
             "Content-Type": "application/json",
-            "X-API-Key": sanitizedKey,
+            "Authorization": `Bearer ${sanitizedKey}`,
           },
           timeout: 5000,
         }

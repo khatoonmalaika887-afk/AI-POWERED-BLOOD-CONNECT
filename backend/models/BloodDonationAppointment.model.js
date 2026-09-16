@@ -63,13 +63,20 @@ const BloodDonationAppointment = sequelize.define('BloodDonationAppointment', {
 // Static methods
 BloodDonationAppointment.cancelExpiredAppointments = async function () {
     const currentDateTime = new Date();
+    const { Op } = sequelize.Sequelize;
 
     const appointments = await this.findAll({
-        where: sequelize.where(
-            sequelize.fn('CONCAT', sequelize.col('appointmentDate'), ' ', sequelize.col('appointmentTime')),
-            '<',
-            currentDateTime.toISOString().slice(0, 19).replace('T', ' ')
-        )
+        where: {
+            [Op.and]: [
+                sequelize.where(
+                    sequelize.fn('CONCAT', sequelize.col('appointmentDate'), ' ', sequelize.col('appointmentTime')),
+                    '<',
+                    currentDateTime.toISOString().slice(0, 19).replace('T', ' ')
+                ),
+                // Don't clobber appointments that already reached a final state
+                { progressStatus: { [Op.notIn]: ['Completed', 'Cancelled'] } },
+            ],
+        },
     });
 
     for (const appointment of appointments) {

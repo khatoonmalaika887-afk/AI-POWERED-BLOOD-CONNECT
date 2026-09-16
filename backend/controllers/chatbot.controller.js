@@ -60,15 +60,14 @@ const searchWithTavily = async (query) => {
             return hit.value;
         }
         const save = (val) => { tavilyCache.set(key, { value: val, ts: Date.now() }); return val; };
-        const response = await tavilyClient.search({
-            query: `blood donation ${query}`,
-            search_depth: "basic",
-            include_answer: true,
-            include_domains: ["redcross.org", "who.int", "mayoclinic.org", "cdc.gov", "blood.ca"],
-            max_results: 2
+        const response = await tavilyClient.search(`blood donation ${query}`, {
+            searchDepth: "basic",
+            includeAnswer: true,
+            includeDomains: ["redcross.org", "who.int", "mayoclinic.org", "cdc.gov", "blood.ca"],
+            maxResults: 2
         });
 
-        const data = response?.data || response || {};
+        const data = response || {};
         const answer = data.answer && typeof data.answer === 'string' ? data.answer.trim() : null;
         const results = Array.isArray(data.results) ? data.results : [];
 
@@ -92,8 +91,9 @@ const searchWithTavily = async (query) => {
         }
         return save("I couldn't find specific information about that. Could you try rephrasing your question?");
     } catch (error) {
-        const status = error?.response?.status;
-        if (status === 401 || status === 403) {
+        // The Tavily SDK throws plain Errors like "401 Error: {...}" rather than
+        // an axios-style error.response.status, so check the message text instead.
+        if (/^40[13] Error/.test(error?.message || "")) {
             return "Tavily API key is invalid or missing permissions. Please check TAVILY_API_KEY in backend .env.";
         }
         console.error("Tavily search error:", error?.message || error);

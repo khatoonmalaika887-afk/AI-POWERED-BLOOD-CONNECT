@@ -6,6 +6,7 @@ import { useSecondAuth } from "../hooks/useSecondAuth";
 import { useAuthContext } from "../hooks/useAuthContext";
 import { useFeedback } from "../hooks/usefeedback";
 import { useGenerateReport } from "../hooks/useGenerateReport";
+import { toast } from "react-toastify";
 
 export default function HealthEvaluationD() {
   const {
@@ -45,6 +46,10 @@ export default function HealthEvaluationD() {
   // State for arrived modal
   const [openArrivedModal, setOpenArrivedModal] = useState(false);
   const [receiptNumber, setReceiptNumber] = useState("");
+
+  // State for complete (record donation) modal
+  const [openCompleteModal, setOpenCompleteModal] = useState(false);
+  const [unitsDonated, setUnitsDonated] = useState("1");
   const [arrivedErrors, setArrivedErrors] = useState({});
 
   // State for feedback modal
@@ -117,7 +122,7 @@ export default function HealthEvaluationD() {
     setLoading(true);
     setErrorMessage("");
     try {
-      await updateAppointmentDateTime(selectedAppointment._id, newDate, newTime, hospitalAdminId);
+      await updateAppointmentDateTime(selectedAppointment.id, newDate, newTime, hospitalAdminId);
       setOpenRescheduleModal(false);
     } catch (error) {
       setErrorMessage("Failed to reschedule appointment. Please try again.");
@@ -139,11 +144,34 @@ export default function HealthEvaluationD() {
     setLoading(true);
     setErrorMessage("");
     try {
-      await arrivedForAppointment(selectedAppointment._id, receiptNumber);
+      await arrivedForAppointment(selectedAppointment.id, receiptNumber);
       setOpenArrivedModal(false);
     } catch (error) {
       setErrorMessage("Failed to confirm arrival. Please try again.");
       console.error("Error confirming arrival:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompleteClick = (appointment) => {
+    setSelectedAppointment(appointment);
+    setUnitsDonated("1");
+    setOpenCompleteModal(true);
+  };
+
+  const handleCompleteSubmit = async () => {
+    const units = parseInt(unitsDonated, 10);
+    if (!units || units <= 0) {
+      toast.error("Units donated must be a positive number");
+      return;
+    }
+    setLoading(true);
+    try {
+      await completeAppointment(selectedAppointment.id, units);
+      setOpenCompleteModal(false);
+    } catch (error) {
+      console.error("Error completing appointment:", error);
     } finally {
       setLoading(false);
     }
@@ -163,7 +191,7 @@ export default function HealthEvaluationD() {
     if (!validateFeedbackForm()) return;
     const feedbackData = {
       donorId: userId,
-      sessionId: selectedAppointment._id,
+      sessionId: selectedAppointment.id,
       sessionModel: "BloodDonationAppointment",
       subject,
       comments,
@@ -270,7 +298,7 @@ export default function HealthEvaluationD() {
           <Table.Body>
             {filteredAppointments.length > 0 ? (
               filteredAppointments.map((appointment) => (
-                <Table.Row key={appointment._id} className="bg-white">
+                <Table.Row key={appointment.id} className="bg-white">
                   <Table.Cell>{appointment.receiptNumber || "N/A"}</Table.Cell>
                   <Table.Cell>{new Date(appointment.appointmentDate).toLocaleDateString()}</Table.Cell>
                   <Table.Cell>{appointment.appointmentTime || "N/A"}</Table.Cell>
@@ -287,9 +315,9 @@ export default function HealthEvaluationD() {
                       {appointment.progressStatus}
                     </span>
                   </Table.Cell>
-                  <Table.Cell>{appointment.hospitalId?.name || "N/A"}</Table.Cell>
-                  <Table.Cell>{appointment.donorId?.firstName + " " + appointment.donorId?.lastName || "N/A"}</Table.Cell>
-                  <Table.Cell>{appointment?.hospitalAdminId?.firstName + " " + appointment?.hospitalAdminId?.lastName || "N/A"}</Table.Cell>
+                  <Table.Cell>{appointment.hospital?.name || "N/A"}</Table.Cell>
+                  <Table.Cell>{appointment.donor ? `${appointment.donor.firstName} ${appointment.donor.lastName}` : "N/A"}</Table.Cell>
+                  <Table.Cell>{appointment.hospitalAdmin ? `${appointment.hospitalAdmin.firstName} ${appointment.hospitalAdmin.lastName}` : "N/A"}</Table.Cell>
                   <Table.Cell className="space-x-2">
                     <div className="flex flex-row gap-2">
                       {Hospital && HospitalAdmin && (
@@ -310,7 +338,7 @@ export default function HealthEvaluationD() {
                               <Button
                                 size="xs"
                                 color="gray"
-                                onClick={() => cancelAppointment(appointment._id, hospitalAdminId)}
+                                onClick={() => cancelAppointment(appointment.id, hospitalAdminId)}
                               >
                                 Cancel
                               </Button>
@@ -321,7 +349,7 @@ export default function HealthEvaluationD() {
                               <Button
                                 size="xs"
                                 color="gray"
-                                onClick={() => acceptAppointment(appointment._id, hospitalAdminId)}
+                                onClick={() => acceptAppointment(appointment.id, hospitalAdminId)}
                               >
                                 Accept
                               </Button>
@@ -333,7 +361,7 @@ export default function HealthEvaluationD() {
                             <Button
                               size="xs"
                               color="failure"
-                              onClick={() => deleteAppointment(appointment._id)}
+                              onClick={() => deleteAppointment(appointment.id)}
                             >
                               Delete
                             </Button>
@@ -353,7 +381,7 @@ export default function HealthEvaluationD() {
                               <Button
                                 size="xs"
                                 color="success"
-                                onClick={() => completeAppointment(appointment._id, hospitalAdminId)}
+                                onClick={() => handleCompleteClick(appointment)}
                               >
                                 Completed
                               </Button>
@@ -367,7 +395,7 @@ export default function HealthEvaluationD() {
                               <Button
                                 size="xs"
                                 color="gray"
-                                onClick={() => cancelAppointmentDonor(appointment._id)}
+                                onClick={() => cancelAppointmentDonor(appointment.id)}
                               >
                                 Cancel
                               </Button>
@@ -378,7 +406,7 @@ export default function HealthEvaluationD() {
                               <Button
                                 size="xs"
                                 color="gray"
-                                onClick={() => acceptAppointment(appointment._id, hospitalAdminId)}
+                                onClick={() => acceptAppointment(appointment.id, hospitalAdminId)}
                               >
                                 Accept
                               </Button>
@@ -484,6 +512,39 @@ export default function HealthEvaluationD() {
             {loading ? "Confirming..." : "Confirm"}
           </Button>
           <Button color="gray" onClick={() => setOpenArrivedModal(false)} disabled={loading}>
+            Cancel
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Complete Appointment Modal - records the donation */}
+      <Modal show={openCompleteModal} onClose={() => setOpenCompleteModal(false)}>
+        <Modal.Header>Complete Appointment</Modal.Header>
+        <Modal.Body>
+          <div>
+            <Label value="Units Donated" />
+            <TextInput
+              type="number"
+              min="1"
+              value={unitsDonated}
+              onChange={(e) => setUnitsDonated(e.target.value)}
+              required
+            />
+            <p className="text-sm text-gray-500 mt-2">
+              This will record the donation in the donor's history and add this amount to the hospital's blood inventory.
+            </p>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            gradientDuoTone="redToPink"
+            onClick={handleCompleteSubmit}
+            disabled={loading}
+          >
+            {loading ? <Spinner size="sm" className="mr-2" /> : null}
+            {loading ? "Completing..." : "Complete"}
+          </Button>
+          <Button color="gray" onClick={() => setOpenCompleteModal(false)} disabled={loading}>
             Cancel
           </Button>
         </Modal.Footer>

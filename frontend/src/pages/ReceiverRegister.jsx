@@ -116,7 +116,7 @@ export default function ReceiverRegister() {
       toast.success('Registration successful!');
       navigate('/receiver-login');
     } catch (error) {
-      toast.error(error.message || 'Registration failed');
+      toast.error(error?.response?.data?.message || 'Registration failed');
     }
   };
 

@@ -72,13 +72,20 @@ const HealthEvaluation = sequelize.define('HealthEvaluation', {
 // Static methods
 HealthEvaluation.cancelExpiredEvaluations = async function () {
     const currentDateTime = new Date();
+    const { Op } = sequelize.Sequelize;
 
     const evaluations = await this.findAll({
-        where: sequelize.where(
-            sequelize.fn('CONCAT', sequelize.col('evaluationDate'), ' ', sequelize.col('evaluationTime')),
-            '<=',
-            currentDateTime.toISOString().slice(0, 19).replace('T', ' ')
-        )
+        where: {
+            [Op.and]: [
+                sequelize.where(
+                    sequelize.fn('CONCAT', sequelize.col('evaluationDate'), ' ', sequelize.col('evaluationTime')),
+                    '<=',
+                    currentDateTime.toISOString().slice(0, 19).replace('T', ' ')
+                ),
+                // Don't clobber evaluations that already reached a final state
+                { progressStatus: { [Op.notIn]: ['Completed', 'Cancelled'] } },
+            ],
+        },
     });
 
     for (const evaluation of evaluations) {

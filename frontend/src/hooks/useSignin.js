@@ -35,20 +35,20 @@ export const useSignin = () => {
     } catch (error) {
       setLoading(false);
       console.error("Error during sign-in:", error);
-      toast.error(error.response?.data?.error || "Network error. Please try again.");
+      throw error;
     }
   };
 
   const signinD = async (formData) => {
-    handleSignIn('/api/auth/signind', formData, null, '/dashboard');
+    return handleSignIn('/api/auth/signind', formData, null, '/dashboard');
   };
 
   const signinA = async (formData) => {
-    handleSignIn('/api/auth/signina', formData, null, '/dashboard');
+    return handleSignIn('/api/auth/signina', formData, null, '/dashboard');
   };
 
   const signinH = async (formData) => {
-    handleSignIn('/api/auth/signinh', formData, null, '/HospitalAdminLogin');
+    return handleSignIn('/api/auth/signinh', formData, null, '/dashboard');
   };
 
   const signinHD = async (formData, userId) => {

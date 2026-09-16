@@ -43,6 +43,9 @@ export default function FooterCom() {
                 <Footer.Link href='/contactus' rel='noopener noreferrer'>
                   Contact Us
                 </Footer.Link>
+                <Footer.Link href='/language' rel='noopener noreferrer'>
+                  Language
+                </Footer.Link>
               </Footer.LinkGroup>
             </div>
 

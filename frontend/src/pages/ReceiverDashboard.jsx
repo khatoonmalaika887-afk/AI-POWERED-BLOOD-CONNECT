@@ -41,7 +41,7 @@ export default function ReceiverDashboard() {
 
   const handleCreateRequest = async () => {
     try {
-      await createBloodRequest(newRequest);
+      await createBloodRequest({ ...newRequest, receiverId: user?.userObj?._id });
       toast.success("Blood request created successfully!");
       setShowCreateModal(false);
       setNewRequest({

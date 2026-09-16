@@ -23,11 +23,9 @@ export const useReceiver = () => {
         },
       });
 
-      toast.success('Receiver registered successfully!');
       return response.data;
     } catch (error) {
-      const message = error.response?.data?.message || 'Registration failed';
-      toast.error(message);
+      console.error('Error creating receiver:', error);
       throw error;
     } finally {
       setLoading(false);

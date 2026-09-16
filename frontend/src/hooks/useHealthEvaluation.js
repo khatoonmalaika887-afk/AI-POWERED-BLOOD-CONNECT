@@ -68,7 +68,7 @@ export const useHealthEvaluation = () => {
         try {
             const response = await axios.patch(`/api/healthEvaluation/${id}/date-time`, { evaluationDate, evaluationTime });
             setEvaluations((prev) =>
-                prev.map((evaluation) => (evaluation._id === id ? response.data : evaluation))
+                prev.map((evaluation) => (evaluation.id === id ? response.data : evaluation))
             );
             toast.success("Date and time updated successfully!");
         } catch (err) {
@@ -81,7 +81,7 @@ export const useHealthEvaluation = () => {
         try {
             const response = await axios.patch(`/api/healthEvaluation/${id}/cancel`, { hospitalAdminId, userId });
             setEvaluations((prev) =>
-                prev.map((evaluation) => (evaluation._id === id ? response.data : evaluation))
+                prev.map((evaluation) => (evaluation.id === id ? response.data : evaluation))
             );
             toast.success("Evaluation canceled successfully!");
         } catch (err) {
@@ -94,7 +94,7 @@ export const useHealthEvaluation = () => {
         try {
             const response = await axios.patch(`/api/healthEvaluation/${id}/accept`, { hospitalAdminId });
             setEvaluations((prev) =>
-                prev.map((evaluation) => (evaluation._id === id ? response.data : evaluation))
+                prev.map((evaluation) => (evaluation.id === id ? response.data : evaluation))
             );
             toast.success("Evaluation accepted successfully!");
         } catch (err) {
@@ -107,7 +107,7 @@ export const useHealthEvaluation = () => {
         try {
             const response = await axios.patch(`/api/healthEvaluation/${id}/arrived`, { receiptNumber });
             setEvaluations((prev) =>
-                prev.map((evaluation) => (evaluation._id === id ? response.data : evaluation))
+                prev.map((evaluation) => (evaluation.id === id ? response.data : evaluation))
             );
             toast.success("Marked as arrived successfully!");
         } catch (err) {
@@ -124,7 +124,7 @@ export const useHealthEvaluation = () => {
 
             const response = await axios.patch(`/api/healthEvaluation/${id}/complete`, formData);
             setEvaluations((prev) =>
-                prev.map((evaluation) => (evaluation._id === id ? response.data : evaluation))
+                prev.map((evaluation) => (evaluation.id === id ? response.data : evaluation))
             );
             toast.success("Evaluation completed successfully!");
         } catch (err) {
@@ -136,7 +136,7 @@ export const useHealthEvaluation = () => {
     const deleteEvaluation = async (id) => {
         try {
             await axios.delete(`/api/healthEvaluation/${id}`);
-            setEvaluations((prev) => prev.filter((evaluation) => evaluation._id !== id));
+            setEvaluations((prev) => prev.filter((evaluation) => evaluation.id !== id));
             toast.success("Evaluation deleted successfully!");
         } catch (err) {
             console.error("Error deleting evaluation:", err);
@@ -148,7 +148,7 @@ export const useHealthEvaluation = () => {
         try {
             const response = await axios.patch(`/api/healthEvaluation/${id}/cancelD`);
             setEvaluations((prev) =>
-                prev.map((evaluation) => (evaluation._id === id ? response.data : evaluation))
+                prev.map((evaluation) => (evaluation.id === id ? response.data : evaluation))
             );
             toast.success("Evaluation canceled successfully!");
         } catch (err) {

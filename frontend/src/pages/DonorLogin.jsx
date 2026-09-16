@@ -5,6 +5,7 @@ import { useSignin } from '../hooks/useSignin';
 import { toast } from 'react-toastify';
 import { HiEye, HiEyeOff } from 'react-icons/hi';
 import SocialLogin from '../components/SocialLogin';
+import background from '../assets/bg1.jpg';
 
 export default function DonorLogin() {
   const navigate = useNavigate();
@@ -53,7 +54,7 @@ export default function DonorLogin() {
       await signinD(formData);
     } catch (err) {
       const errorMsg =
-        err?.response?.data?.error ||
+        err?.response?.data?.message ||
         (err.message === 'Network Error'
           ? 'Network error. Please check your connection.'
           : 'Login failed. Please try again.');
@@ -75,7 +76,10 @@ export default function DonorLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-red-50 to-red-100 py-12 px-4 sm:px-6 lg:px-8 blood-themed-bg">
+    <div
+      className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-cover bg-center"
+      style={{ backgroundImage: `url(${background})` }}
+    >
       <div className="login-container animate-fade-in">
         <div className="login-header">
           <Button
