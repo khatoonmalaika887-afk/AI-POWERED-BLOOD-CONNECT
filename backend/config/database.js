@@ -10,6 +10,13 @@ const sequelize = new Sequelize(
   {
     host: process.env.DB_HOST ?? '127.0.0.1',
     dialect: 'mysql',
+
+    dialectOptions: {
+  ssl: {
+    require: true,
+    rejectUnauthorized: false
+  }
+},
     logging: false, // Set to console.log to see SQL queries
     pool: {
       max: 5,
