@@ -1,5 +1,5 @@
 import express from "express";
-import upload from "../utils/Multer.js"; // Assuming you have multer setup for image uploads
+import upload from "../utils/multer.js"; // Assuming you have multer setup for image uploads
 import {
     getHospitals,
     getHospitalById,

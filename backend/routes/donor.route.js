@@ -1,5 +1,5 @@
 import express from "express";
-import upload from '../utils/Multer.js';
+import upload from '';
 import {
     getDonors,
     getDonorById,
