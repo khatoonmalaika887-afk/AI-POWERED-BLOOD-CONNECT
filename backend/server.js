@@ -238,7 +238,7 @@ app.post('/api/test-notification', async (req, res) => {
 
 // Database Connection and Server Start
 connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+  console.log("Database connected");
 });
+
+export default app;
