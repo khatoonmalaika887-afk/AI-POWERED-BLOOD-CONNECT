@@ -51,15 +51,11 @@ app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173", creden
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Multer Configuration for File Uploads (Your specified version)
-const storage = multer.diskStorage({
-  destination: "./uploads/", // Directory where files will be stored
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`); // Unique filename
-  },
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({ storage });
+
+
 
 // Serve Uploaded Files Statically
 app.use("/uploads", express.static(path.join(_dirname, "uploads")));
